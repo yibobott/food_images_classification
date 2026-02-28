@@ -68,7 +68,6 @@ DEFAULT_CONFIG = {
         "enabled": True,
         "warmup_epochs": 5,
         "pseudo_threshold": 0.95,
-        "semi_weight": 0.5,
         "pseudo_batch_size": 256,
     },
     "output": {
@@ -401,7 +400,6 @@ def main(config_path: str):
     do_semi = bool(cfg["semi"]["enabled"])
     warmup_epochs = int(cfg["semi"]["warmup_epochs"])
     pseudo_threshold = float(cfg["semi"]["pseudo_threshold"])
-    semi_weight = float(cfg["semi"]["semi_weight"])
     pseudo_batch_size = int(cfg["semi"]["pseudo_batch_size"])
 
     best_acc = 0.0
