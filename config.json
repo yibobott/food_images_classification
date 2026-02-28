@@ -1,0 +1,48 @@
+{
+  "seed": 42,
+  "data": {
+    "train_labeled": "food11/training/labeled",
+    "train_unlabeled": "food11/training/unlabeled",
+    "valid": "food11/validation",
+    "test": "food11/testing"
+  },
+  "dataloader": {
+    "batch_size": 128,
+    "num_workers": 0,
+    "pin_memory": true
+  },
+  "image": {
+    "img_size": 128,
+    "mean": [0.485, 0.456, 0.406],
+    "std": [0.229, 0.224, 0.225]
+  },
+  "augment": {
+    "random_resized_crop_scale": [0.7, 1.0],
+    "random_resized_crop_ratio": [0.9, 1.1],
+    "horizontal_flip_p": 0.5,
+    "rotation_deg": 15,
+    "color_jitter": {
+      "brightness": 0.2,
+      "contrast": 0.2,
+      "saturation": 0.2,
+      "hue": 0.05
+    }
+  },
+  "train": {
+    "n_epochs": 25,
+    "lr": 0.0003,
+    "weight_decay": 0.0001,
+    "label_smoothing": 0.1
+  },
+  "semi": {
+    "enabled": true,
+    "warmup_epochs": 5,
+    "pseudo_threshold": 0.95,
+    "semi_weight": 0.5,
+    "pseudo_batch_size": 256
+  },
+  "output": {
+    "best_path": "best_model.pt",
+    "predict_path": "predict.csv"
+  }
+}
