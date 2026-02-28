@@ -26,6 +26,9 @@ import torch.nn.functional as F
 from torch.utils.data import Dataset
 import argparse
 import json
+import logging
+import sys
+from datetime import datetime
 
 
 DEFAULT_CONFIG = {
@@ -71,7 +74,7 @@ DEFAULT_CONFIG = {
         "pseudo_batch_size": 256,
     },
     "output": {
-        "best_path": "best_model.pt",
+        "best_path": "best-model.pt",
         "predict_path": "predict.csv",
     },
 }
@@ -102,6 +105,36 @@ def set_seed(seed: int = 42):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
+
+def _append_date_suffix(path: str, date: str) -> str:
+    base, ext = os.path.splitext(path)
+    if ext == "":
+        return f"{base}-{date}"
+    return f"{base}-{date}{ext}"
+
+
+def _build_logger(date: str) -> logging.Logger:
+    logger = logging.getLogger("hw2")
+    logger.setLevel(logging.INFO)
+
+    if logger.handlers:
+        return logger
+
+    formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+
+    sh = logging.StreamHandler(stream=sys.stdout)
+    sh.setLevel(logging.INFO)
+    sh.setFormatter(formatter)
+
+    fh = logging.FileHandler(f"log-{date}.txt", mode="w", encoding="utf-8")
+    fh.setLevel(logging.INFO)
+    fh.setFormatter(formatter)
+
+    logger.addHandler(sh)
+    logger.addHandler(fh)
+    logger.propagate = False
+    return logger
 
 
 
@@ -276,12 +309,16 @@ def valid_one_epoch(model, loader, criterion, device):
 
 
 def main(config_path: str):
+    date = datetime.now().strftime("%Y%m%d-%H%M%S")
+    logger = _build_logger(date)
+
     # load config
     cfg = load_config(config_path)
-    print(json.dumps(cfg, indent=2, sort_keys=True))
+    logger.info(f"date={date}")
+    logger.info("config=\n" + json.dumps(cfg, indent=2, sort_keys=True))
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    print("Device:", device)
+    logger.info(f"Device: {device}")
 
     set_seed(int(cfg["seed"]))
 
@@ -372,17 +409,17 @@ def main(config_path: str):
         pin_memory=pin_memory,
     )
 
-    print("train labeled:", len(train_set))
-    print("train unlabeled:", len(unlabeled_set))
-    print("valid:", len(valid_set))
-    print("test:", len(test_set))
+    logger.info(f"train labeled: {len(train_set)}")
+    logger.info(f"train unlabeled: {len(unlabeled_set)}")
+    logger.info(f"valid: {len(valid_set)}")
+    logger.info(f"test: {len(test_set)}")
 
     # ===========
     # Model
     # ===========
 
     model = SmallResNet(num_classes=11).to(device)
-    print("#params:", sum(p.numel() for p in model.parameters()) / 1e6, "M")
+    logger.info(f"#params: {sum(p.numel() for p in model.parameters()) / 1e6:.3f} M")
 
     # ===========
     # Training & Validation
@@ -403,7 +440,7 @@ def main(config_path: str):
     pseudo_batch_size = int(cfg["semi"]["pseudo_batch_size"])
 
     best_acc = 0.0
-    best_path = str(cfg["output"]["best_path"])
+    best_path = _append_date_suffix(str(cfg["output"]["best_path"]), date)
 
     # do semi-supervised learning after warmup epochs
     for epoch in range(1, n_epochs + 1):
@@ -421,7 +458,7 @@ def main(config_path: str):
                 threshold=pseudo_threshold,
                 batch_size=pseudo_batch_size,
             )
-            print(f"[Semi] epoch {epoch}: keep_ratio={keep_ratio:.3f}, kept={keep_n}")
+            logger.info(f"[Semi] epoch {epoch}: keep_ratio={keep_ratio:.3f}, kept={keep_n}")
             # rebuild train loader
             concat_ds = ConcatDataset([train_set, pseudo_ds])
             train_loader_epoch = DataLoader(
@@ -438,14 +475,14 @@ def main(config_path: str):
         va_loss, va_acc = valid_one_epoch(model, valid_loader, criterion, device)
         scheduler.step()
 
-        print(
+        logger.info(
             f"Epoch {epoch:02d}/{n_epochs} | train loss {tr_loss:.4f} acc {tr_acc:.4f} | valid loss {va_loss:.4f} acc {va_acc:.4f} | lr {scheduler.get_last_lr()[0]:.2e}"
         )
 
         if va_acc > best_acc:
             best_acc = va_acc
             torch.save(model.state_dict(), best_path)
-            print(f"  -> saved best: {best_acc:.4f}")
+            logger.info(f"  -> saved best: {best_acc:.4f} ({best_path})")
 
     # ===========
     # Testing
@@ -462,15 +499,15 @@ def main(config_path: str):
             pred = logits.argmax(dim=-1).cpu().numpy().tolist()
             predictions.extend(pred)
 
-    print("#pred:", len(predictions))
+    logger.info(f"#pred: {len(predictions)}")
 
-    out_path = str(cfg["output"]["predict_path"])
+    out_path = _append_date_suffix(str(cfg["output"]["predict_path"]), date)
     with open(out_path, "w") as f:
         f.write("Id,Category\n")
         for i, pred in enumerate(predictions):
             f.write(f"{i},{pred}\n")
 
-    print("Saved:", out_path)
+    logger.info(f"Saved: {out_path}")
 
 
 if __name__ == "__main__":
