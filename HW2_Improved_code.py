@@ -361,7 +361,6 @@ def main(config_path: str):
 
     # data augmentation in training
     train_tfm = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
         transforms.RandomResizedCrop(img_size, scale=rrc_scale, ratio=rrc_ratio),
         transforms.RandomHorizontalFlip(p=float(cfg["augment"]["horizontal_flip_p"])),
         transforms.RandomRotation(float(cfg["augment"]["rotation_deg"])),
