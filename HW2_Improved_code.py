@@ -142,64 +142,123 @@ def _build_logger(date: str) -> logging.Logger:
     logger.propagate = False
     return logger
 
+# ===========
+# CIFAR-style ResNet-18 (BasicBlock) from scratch
+# - 3x3 stem, stride=1
+# - NO maxpool
+# - NO pretrained weights
+# ===========
 
+def conv3x3(in_planes, out_planes, stride=1):
+    return nn.Conv2d(
+        in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False
+    )
 
-class BasicBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, stride=1):
+def conv1x1(in_planes, out_planes, stride=1):
+    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
+
+class ResNetBasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, in_planes, planes, stride=1):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_ch, out_ch, 3, stride=stride, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(out_ch)
-        self.conv2 = nn.Conv2d(out_ch, out_ch, 3, stride=1, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(out_ch)
+        self.conv1 = conv3x3(in_planes, planes, stride=stride)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = conv3x3(planes, planes, stride=1)
+        self.bn2 = nn.BatchNorm2d(planes)
 
-        self.shortcut = nn.Identity()
-        if stride != 1 or in_ch != out_ch:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_ch, out_ch, 1, stride=stride, bias=False),
-                nn.BatchNorm2d(out_ch),
+        self.downsample = None
+        if stride != 1 or in_planes != planes * self.expansion:
+            self.downsample = nn.Sequential(
+                conv1x1(in_planes, planes * self.expansion, stride=stride),
+                nn.BatchNorm2d(planes * self.expansion),
             )
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
-        out = out + self.shortcut(x)
-        out = F.relu(out)
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = F.relu(out, inplace=True)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out = out + identity
+        out = F.relu(out, inplace=True)
         return out
 
 
-class SmallResNet(nn.Module):
-    def __init__(self, num_classes=11):
-        super().__init__()
-        # from [batch_size, 3, 128, 128] to [batch_size, 64, 128, 128]
-        self.stem = nn.Sequential(
-            nn.Conv2d(3, 64, 3, stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-        )
+class ResNet(nn.Module):
+    """
+    CIFAR-style stem:
+      - conv3x3 stride=1
+      - no maxpool
 
-        # layer1 output: [batch_size, 64, 128, 128]
-        self.layer1 = nn.Sequential(BasicBlock(64, 64), BasicBlock(64, 64))
-        # layer2 output: [batch_size, 128, 64, 64]
-        self.layer2 = nn.Sequential(BasicBlock(64, 128, stride=2), BasicBlock(128, 128))
-        # layer3 output: [batch_size, 256, 32, 32]
-        self.layer3 = nn.Sequential(BasicBlock(128, 256, stride=2), BasicBlock(256, 256))
-        # layer4 output: [batch_size, 512, 16, 16]
-        self.layer4 = nn.Sequential(BasicBlock(256, 512, stride=2), BasicBlock(512, 512))
-        # pool output: [batch_size, 512, 1, 1]
-        self.pool = nn.AdaptiveAvgPool2d((1, 1))
-        # output: [batch_size, 11]
-        self.fc = nn.Linear(512, num_classes)
+    For 128x128 input:
+      - after stem: 128x128
+      - layer2 stride2 -> 64x64
+      - layer3 stride2 -> 32x32
+      - layer4 stride2 -> 16x16
+      - avgpool -> 1x1
+    """
+    def __init__(self, block, layers, num_classes=11, base_width=64):
+        super().__init__()
+        self.inplanes = base_width
+
+        # CIFAR-style stem
+        self.conv1 = nn.Conv2d(3, base_width, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(base_width)
+        self.relu = nn.ReLU(inplace=True)
+
+        # Stages (same 2-2-2-2 for ResNet18)
+        self.layer1 = self._make_layer(block, base_width,     layers[0], stride=1)
+        self.layer2 = self._make_layer(block, base_width * 2, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, base_width * 4, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, base_width * 8, layers[3], stride=2)
+
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(base_width * 8 * block.expansion, num_classes)
+
+        # Kaiming init
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1.0)
+                nn.init.constant_(m.bias, 0.0)
+
+    def _make_layer(self, block, planes, blocks, stride):
+        layers = []
+        layers.append(block(self.inplanes, planes, stride=stride))
+        self.inplanes = planes * block.expansion
+        for _ in range(1, blocks):
+            layers.append(block(self.inplanes, planes, stride=1))
+        return nn.Sequential(*layers)
 
     def forward(self, x):
-        x = self.stem(x)
+        # stem
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+
+        # stages
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        # output: [batch_size, 512]
-        x = self.pool(x).flatten(1)
+
+        # head
+        x = self.avgpool(x).flatten(1)
         x = self.fc(x)
         return x
+
+
+def resnet18(num_classes=11):
+    return ResNet(ResNetBasicBlock, [2, 2, 2, 2], num_classes=num_classes, base_width=64)
 
 
 
@@ -361,7 +420,6 @@ def main(config_path: str):
 
     # data augmentation in training
     train_tfm = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
         transforms.RandomResizedCrop(img_size, scale=rrc_scale, ratio=rrc_ratio),
         transforms.RandomHorizontalFlip(p=float(cfg["augment"]["horizontal_flip_p"])),
         transforms.RandomRotation(float(cfg["augment"]["rotation_deg"])),
@@ -447,7 +505,7 @@ def main(config_path: str):
     # Model
     # ===========
 
-    model = SmallResNet(num_classes=11).to(device)
+    model = resnet18(num_classes=11).to(device)
     logger.info(f"#params: {sum(p.numel() for p in model.parameters()) / 1e6:.3f} M")
 
     # ===========
