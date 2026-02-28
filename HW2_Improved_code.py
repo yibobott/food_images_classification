@@ -95,6 +95,7 @@ def _deep_update(base, updates):
     return base
 
 
+
 def set_seed(seed: int = 42):
     random.seed(seed)
     np.random.seed(seed)
@@ -102,6 +103,7 @@ def set_seed(seed: int = 42):
     torch.cuda.manual_seed_all(seed)
     torch.backends.cudnn.deterministic = True
     torch.backends.cudnn.benchmark = False
+
 
 
 class BasicBlock(nn.Module):
@@ -125,6 +127,7 @@ class BasicBlock(nn.Module):
         out = out + self.shortcut(x)
         out = F.relu(out)
         return out
+
 
 class SmallResNet(nn.Module):
     def __init__(self, num_classes=11):
@@ -181,6 +184,7 @@ class PseudoLabelDataset(Dataset):
         if self.transform is not None:
             img = self.transform(img)
         return img, self.pseudo_labels[idx].item()
+
 
 @torch.no_grad()
 def get_pseudo_labels(
@@ -255,6 +259,7 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
 
     return float(np.mean(losses)), float(np.mean(accs))
 
+
 @torch.no_grad()
 def valid_one_epoch(model, loader, criterion, device):
     model.eval()
@@ -268,6 +273,7 @@ def valid_one_epoch(model, loader, criterion, device):
         losses.append(loss.item())
         accs.append(acc)
     return float(np.mean(losses)), float(np.mean(accs))
+
 
 
 def main(config_path: str):
@@ -379,6 +385,10 @@ def main(config_path: str):
     model = SmallResNet(num_classes=11).to(device)
     print("#params:", sum(p.numel() for p in model.parameters()) / 1e6, "M")
 
+    # ===========
+    # Training & Validation
+    # ===========
+
     n_epochs = int(cfg["train"]["n_epochs"])
     lr = float(cfg["train"]["lr"])
     weight_decay = float(cfg["train"]["weight_decay"])
@@ -387,10 +397,6 @@ def main(config_path: str):
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs)
-
-    # ===========
-    # Training & Validation
-    # ===========
 
     do_semi = bool(cfg["semi"]["enabled"])
     warmup_epochs = int(cfg["semi"]["warmup_epochs"])
@@ -418,6 +424,7 @@ def main(config_path: str):
                 batch_size=pseudo_batch_size,
             )
             print(f"[Semi] epoch {epoch}: keep_ratio={keep_ratio:.3f}, kept={keep_n}")
+            # rebuild train loader
             concat_ds = ConcatDataset([train_set, pseudo_ds])
             train_loader_epoch = DataLoader(
                 concat_ds,
@@ -446,6 +453,7 @@ def main(config_path: str):
     # Testing
     # ===========
 
+    # Load best checkpoint
     model.load_state_dict(torch.load(best_path, map_location=device))
     model.eval()
 
