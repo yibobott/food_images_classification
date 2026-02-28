@@ -89,8 +89,62 @@ best-model-20260301-001530.pt
 predict-20260301-001530.csv
 ```
 
-## Notes (macOS DataLoader)
+## Differences from Baseline Code
 
-- On macOS, `DataLoader(num_workers > 0)` uses multiprocessing with a start method that requires objects to be picklable.
-- The script uses a top-level `rgb_loader` (not lambdas) to avoid pickling errors.
-- If you still encounter multiprocessing issues, try setting `num_workers` to `0` in `config.json`.
+Compared with the provided baseline implementation, our improved version introduces several enhancements in model design, training strategy, and engineering structure:
+
+### 1. Improved Model Architecture
+
+- The baseline model uses a relatively simple CNN structure.
+- Our implementation replaces it with ResNet18, a deeper convolutional network with residual connections.
+- Residual blocks help alleviate the vanishing gradient problem and enable more stable training.
+- The final fully connected layer is modified to match the target number of classes.
+
+In particular, we implement a CIFAR-style ResNet-18 from scratch (no pretrained weights):
+
+- A 3x3 convolution stem with stride=1 and **no max-pooling**.
+- Four residual stages with `BasicBlock` in a `2-2-2-2` layout (ResNet-18).
+- Downsampling is done by using stride=2 at the beginning of stage 2/3/4.
+- For `128x128` inputs, the spatial resolution changes as:
+  - after stem: `128x128`
+  - after stage2: `64x64`
+  - after stage3: `32x32`
+  - after stage4: `16x16`
+- An `AdaptiveAvgPool2d((1, 1))` reduces features to `1x1`, followed by a linear classifier for 11 classes.
+
+This significantly improves feature extraction capability and model expressiveness.
+
+### 2. Configurable Training Pipeline
+
+- The improved version supports a JSON-based configuration system (`config.json`).
+- Key hyperparameters (learning rate, batch size, augmentation settings, semi-supervised options, etc.) can be modified without changing the source code.
+- This makes experiments more flexible and reproducible.
+
+### 3. Semi-Supervised Learning (Pseudo-Labeling)
+
+- The baseline only uses labeled data.
+- Our version optionally incorporates unlabeled data through pseudo-labeling:
+  - Warm-up epochs before pseudo-label generation
+  - Confidence threshold filtering
+  - Periodic pseudo-label updates
+- This allows better utilization of the unlabeled dataset and improves generalization performance.
+
+### 4. Enhanced Data Augmentation
+
+- Additional data augmentation techniques are applied during training, such as:
+  - Random horizontal flipping
+  - Random cropping and resizing
+  - Color jitter (brightness / contrast / saturation adjustments)
+  - Random rotation (if enabled in config)
+- Augmentation parameters are configurable via `config.json`.
+- These techniques increase data diversity, reduce overfitting, and improve model generalization performance.
+
+### 5. Logging and Checkpoint Management
+
+- Each run automatically:
+  - Prints and logs the merged runtime configuration
+  - Saves timestamped checkpoints
+  - Saves prediction results with unique filenames
+- This improves experiment tracking and reproducibility.
+
+
