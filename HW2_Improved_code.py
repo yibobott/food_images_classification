@@ -109,6 +109,10 @@ def set_seed(seed: int = 42):
     torch.backends.cudnn.benchmark = True
 
 
+def rgb_loader(path: str):
+    return Image.open(path).convert("RGB")
+
+
 def _append_date_suffix(path: str, date: str) -> str:
     base, ext = os.path.splitext(path)
     if ext == "":
@@ -244,9 +248,24 @@ def get_pseudo_labels(
     ])
 
     # Build a lightweight view of the unlabeled dataset with weak transform
-    tmp = DatasetFolder(unlabeled_ds.root, loader=lambda x: Image.open(x).convert('RGB'),
-                        extensions=("jpg", "jpeg", "png"), transform=weak_tfm)
-    loader = DataLoader(tmp, batch_size=batch_size, shuffle=False, num_workers=num_workers, pin_memory=pin_memory)
+    tmp = DatasetFolder(
+        unlabeled_ds.root,
+        loader=rgb_loader,
+        extensions=("jpg", "jpeg", "png"),
+        transform=weak_tfm,
+    )
+    loader_kwargs = {}
+    if num_workers > 0:
+        loader_kwargs["persistent_workers"] = True
+        loader_kwargs["prefetch_factor"] = 2
+    loader = DataLoader(
+        tmp,
+        batch_size=batch_size,
+        shuffle=False,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        **loader_kwargs,
+    )
 
     all_conf = []
     all_pred = []
@@ -365,28 +384,33 @@ def main(config_path: str):
     # Construct datasets
     train_set = DatasetFolder(
         cfg["data"]["train_labeled"],
-        loader=lambda x: Image.open(x).convert('RGB'),
+        loader=rgb_loader,
         extensions=("jpg", "jpeg", "png"),
         transform=train_tfm,
     )
     valid_set = DatasetFolder(
         cfg["data"]["valid"],
-        loader=lambda x: Image.open(x).convert('RGB'),
+        loader=rgb_loader,
         extensions=("jpg", "jpeg", "png"),
         transform=test_tfm,
     )
     unlabeled_set = DatasetFolder(
         cfg["data"]["train_unlabeled"],
-        loader=lambda x: Image.open(x).convert('RGB'),
+        loader=rgb_loader,
         extensions=("jpg", "jpeg", "png"),
         transform=train_tfm,
     )
     test_set = DatasetFolder(
         cfg["data"]["test"],
-        loader=lambda x: Image.open(x).convert('RGB'),
+        loader=rgb_loader,
         extensions=("jpg", "jpeg", "png"),
         transform=test_tfm,
     )
+
+    loader_kwargs = {}
+    if num_workers > 0:
+        loader_kwargs["persistent_workers"] = True
+        loader_kwargs["prefetch_factor"] = 2
 
     # Construct data loaders
     train_loader = DataLoader(
@@ -395,8 +419,7 @@ def main(config_path: str):
         shuffle=True,
         num_workers=num_workers,
         pin_memory=pin_memory,
-        persistent_workers=(num_workers > 0),
-        prefetch_factor=2 if num_workers > 0 else None,
+        **loader_kwargs,
     )
     valid_loader = DataLoader(
         valid_set,
@@ -404,6 +427,7 @@ def main(config_path: str):
         shuffle=False,
         num_workers=num_workers,
         pin_memory=pin_memory,
+        **loader_kwargs,
     )
     test_loader = DataLoader(
         test_set,
@@ -411,6 +435,7 @@ def main(config_path: str):
         shuffle=False,
         num_workers=num_workers,
         pin_memory=pin_memory,
+        **loader_kwargs,
     )
 
     logger.info(f"train labeled: {len(train_set)}")
@@ -472,8 +497,7 @@ def main(config_path: str):
                 shuffle=True,
                 num_workers=num_workers,
                 pin_memory=pin_memory,
-                persistent_workers=(num_workers > 0),
-                prefetch_factor=2 if num_workers > 0 else None,
+                **loader_kwargs,
             )
         else:
             train_loader_epoch = train_loader
