@@ -72,6 +72,7 @@ DEFAULT_CONFIG = {
         "warmup_epochs": 5,
         "pseudo_threshold": 0.95,
         "pseudo_batch_size": 256,
+        "pseudo_every": 1
     },
     "output": {
         "best_path": "best-model.pt",
@@ -103,8 +104,9 @@ def set_seed(seed: int = 42):
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
+    # to save time
+    torch.backends.cudnn.deterministic = False
+    torch.backends.cudnn.benchmark = True
 
 
 def _append_date_suffix(path: str, date: str) -> str:
@@ -274,8 +276,8 @@ def train_one_epoch(model, loader, optimizer, criterion, device):
     model.train()
     losses, accs = [], []
     for imgs, labels in tqdm(loader, desc="Train", leave=False):
-        imgs = imgs.to(device)
-        labels = labels.to(device)
+        imgs = imgs.to(device, non_blocking=True)
+        labels = labels.to(device, non_blocking=True)
 
         logits = model(imgs)
         loss = criterion(logits, labels)
@@ -297,8 +299,8 @@ def valid_one_epoch(model, loader, criterion, device):
     model.eval()
     losses, accs = [], []
     for imgs, labels in tqdm(loader, desc="Valid", leave=False):
-        imgs = imgs.to(device)
-        labels = labels.to(device)
+        imgs = imgs.to(device, non_blocking=True)
+        labels = labels.to(device, non_blocking=True)
         logits = model(imgs)
         loss = criterion(logits, labels)
         acc = (logits.argmax(dim=-1) == labels).float().mean().item()
@@ -393,6 +395,8 @@ def main(config_path: str):
         shuffle=True,
         num_workers=num_workers,
         pin_memory=pin_memory,
+        persistent_workers=(num_workers > 0),
+        prefetch_factor=2 if num_workers > 0 else None,
     )
     valid_loader = DataLoader(
         valid_set,
@@ -438,13 +442,14 @@ def main(config_path: str):
     warmup_epochs = int(cfg["semi"]["warmup_epochs"])
     pseudo_threshold = float(cfg["semi"]["pseudo_threshold"])
     pseudo_batch_size = int(cfg["semi"]["pseudo_batch_size"])
+    pseudo_every = int(cfg["semi"]["pseudo_every"])
 
     best_acc = 0.0
     best_path = _append_date_suffix(str(cfg["output"]["best_path"]), date)
 
-    # do semi-supervised learning after warmup epochs
+    # do semi-supervised learning
     for epoch in range(1, n_epochs + 1):
-        if do_semi and epoch > warmup_epochs:
+        if do_semi and epoch > warmup_epochs and (epoch % pseudo_every == 0):
             pseudo_ds, keep_ratio, keep_n = get_pseudo_labels(
                 unlabeled_set,
                 model,
@@ -467,6 +472,8 @@ def main(config_path: str):
                 shuffle=True,
                 num_workers=num_workers,
                 pin_memory=pin_memory,
+                persistent_workers=(num_workers > 0),
+                prefetch_factor=2 if num_workers > 0 else None,
             )
         else:
             train_loader_epoch = train_loader

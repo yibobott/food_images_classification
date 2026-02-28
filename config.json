@@ -8,7 +8,7 @@
   },
   "dataloader": {
     "batch_size": 128,
-    "num_workers": 0,
+    "num_workers": 8,
     "pin_memory": true
   },
   "image": {
@@ -38,8 +38,8 @@
     "enabled": true,
     "warmup_epochs": 5,
     "pseudo_threshold": 0.95,
-    "semi_weight": 0.5,
-    "pseudo_batch_size": 256
+    "pseudo_batch_size": 256,
+    "pseudo_every": 3
   },
   "output": {
     "best_path": "best-model.pt",
