@@ -7,7 +7,7 @@
     "test": "food11/testing"
   },
   "dataloader": {
-    "batch_size": 128,
+    "batch_size": 64,
     "num_workers": 8,
     "pin_memory": true
   },
@@ -38,7 +38,7 @@
     "enabled": true,
     "warmup_epochs": 10,
     "pseudo_threshold": 0.9,
-    "pseudo_batch_size": 128,
+    "pseudo_batch_size": 64,
     "pseudo_every": 3
   },
   "output": {

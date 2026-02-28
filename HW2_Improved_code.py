@@ -331,7 +331,7 @@ def get_pseudo_labels(
 
     softmax = nn.Softmax(dim=-1)
     for imgs, _ in tqdm(loader, desc="Pseudo-labeling", leave=False):
-        logits = model(imgs.to(device))
+        logits = model(imgs.to(device, non_blocking=True))
         probs = softmax(logits)
         conf, pred = probs.max(dim=-1)
         all_conf.append(conf.cpu())
@@ -584,7 +584,7 @@ def main(config_path: str):
     predictions = []
     with torch.no_grad():
         for imgs, _ in tqdm(test_loader, desc="Test"):
-            logits = model(imgs.to(device))
+            logits = model(imgs.to(device, non_blocking=True))
             pred = logits.argmax(dim=-1).cpu().numpy().tolist()
             predictions.extend(pred)
 
