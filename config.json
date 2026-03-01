@@ -30,12 +30,12 @@
   },
   "train": {
     "n_epochs": 220,
-    "lr": 0.001,
+    "lr": 0.0007,
     "weight_decay": 0.0002,
     "label_smoothing": 0.05
   },
   "semi": {
-    "enabled": true,
+    "enabled": false,
     "warmup_epochs": 12,
     "pseudo_threshold": 0.94,
     "unsup_batch_size": 128,
