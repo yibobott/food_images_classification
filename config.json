@@ -29,17 +29,17 @@
     }
   },
   "train": {
-    "n_epochs": 160,
+    "n_epochs": 200,
     "lr": 0.001,
-    "weight_decay": 0.0005,
+    "weight_decay": 0.0001,
     "label_smoothing": 0.05
   },
   "semi": {
     "enabled": true,
     "warmup_epochs": 20,
-    "pseudo_threshold": 0.97,
+    "pseudo_threshold": 0.95,
     "unsup_batch_size": 128,
-    "lambda_u": 1.0,
+    "lambda_u": 0.5,
     "ema": {
       "decay": 0.999
     }

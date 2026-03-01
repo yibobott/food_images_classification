@@ -285,7 +285,11 @@ class EMA:
         esd = self.ema.state_dict()
         for k, v in esd.items():
             if k in msd:
-                esd[k].mul_(d).add_(msd[k].detach(), alpha=1.0 - d)
+                model_v = msd[k].detach()
+                if torch.is_floating_point(v):
+                    v.mul_(d).add_(model_v, alpha=1.0 - d)
+                else:
+                    v.copy_(model_v)
 
     def to(self, device):
         self.ema.to(device)
@@ -339,41 +343,46 @@ def train_one_epoch(
     losses, accs = [], []
     mask_ratios = []
 
-    # unlabeled iterator (cycle)
-    unl_it = iter(unlabeled_loader)
+    # unlabeled iterator (cycle), only when unsupervised branch is enabled
+    unl_it = None
+    if unlabeled_loader is not None and float(lambda_u) > 0.0:
+        unl_it = iter(unlabeled_loader)
 
     for imgs_x, labels_x in tqdm(labeled_loader, desc="Train", leave=False):
-        try:
-            xw_u, xs_u = next(unl_it)
-        except StopIteration:
-            unl_it = iter(unlabeled_loader)
-            xw_u, xs_u = next(unl_it)
-
         imgs_x = imgs_x.to(device, non_blocking=True)
         labels_x = labels_x.to(device, non_blocking=True)
-
-        xw_u = xw_u.to(device, non_blocking=True)
-        xs_u = xs_u.to(device, non_blocking=True)
 
         # supervised
         logits_x = model(imgs_x)
         loss_x = criterion(logits_x, labels_x)
 
-        # unsupervised (teacher on weak, student on strong)
-        with torch.no_grad():
-            t_logits = ema.ema(xw_u)
-            t_prob = torch.softmax(t_logits, dim=-1)
-            t_conf, t_pred = t_prob.max(dim=-1)
-            mask = (t_conf >= float(pseudo_threshold)).float()
-            mask_ratios.append(mask.mean().item())
+        if unl_it is not None:
+            try:
+                xw_u, xs_u = next(unl_it)
+            except StopIteration:
+                unl_it = iter(unlabeled_loader)
+                xw_u, xs_u = next(unl_it)
 
-        s_logits_u = model(xs_u)
-        loss_u_all = torch.nn.functional.cross_entropy(s_logits_u, t_pred, reduction="none")
-        # avoid div-by-0
-        denom = mask.sum().clamp(min=1.0)
-        loss_u = (loss_u_all * mask).sum() / denom
+            xw_u = xw_u.to(device, non_blocking=True)
+            xs_u = xs_u.to(device, non_blocking=True)
 
-        loss = loss_x + float(lambda_u) * loss_u
+            # unsupervised (teacher on weak, student on strong)
+            with torch.no_grad():
+                t_logits = ema.ema(xw_u)
+                t_prob = torch.softmax(t_logits, dim=-1)
+                t_conf, t_pred = t_prob.max(dim=-1)
+                mask = (t_conf >= float(pseudo_threshold)).float()
+                mask_ratios.append(mask.mean().item())
+
+            s_logits_u = model(xs_u)
+            loss_u_all = torch.nn.functional.cross_entropy(s_logits_u, t_pred, reduction="none")
+            # avoid div-by-0
+            denom = mask.sum().clamp(min=1.0)
+            loss_u = (loss_u_all * mask).sum() / denom
+            loss = loss_x + float(lambda_u) * loss_u
+        else:
+            mask_ratios.append(0.0)
+            loss = loss_x
 
         optimizer.zero_grad()
         loss.backward()
@@ -429,6 +438,7 @@ def main(config_path: str):
     batch_size = int(cfg["dataloader"]["batch_size"])
     num_workers = int(cfg["dataloader"]["num_workers"])
     pin_memory = bool(cfg["dataloader"]["pin_memory"])
+    do_semi = bool(cfg["semi"]["enabled"])
 
     mean = tuple(float(x) for x in cfg["image"]["mean"])
     std = tuple(float(x) for x in cfg["image"]["std"])
@@ -479,11 +489,13 @@ def main(config_path: str):
         extensions=("jpg", "jpeg", "png"),
         transform=test_tfm,
     )
-    unlabeled_set = UnlabeledPairDataset(
-        cfg["data"]["train_unlabeled"],
-        weak_tfm=weak_tfm,
-        strong_tfm=train_tfm, # strong aug for student
-    )
+    unlabeled_set = None
+    if do_semi:
+        unlabeled_set = UnlabeledPairDataset(
+            cfg["data"]["train_unlabeled"],
+            weak_tfm=weak_tfm,
+            strong_tfm=train_tfm, # strong aug for student
+        )
     test_set = DatasetFolder(
         cfg["data"]["test"],
         loader=rgb_loader,
@@ -513,16 +525,18 @@ def main(config_path: str):
         pin_memory=pin_memory,
         **loader_kwargs,
     )
-    unsup_bs = int(cfg.get("semi", {}).get("unsup_batch_size", batch_size))
-    unlabeled_loader = DataLoader(
-        unlabeled_set,
-        batch_size=unsup_bs,
-        shuffle=True,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        drop_last=True,
-        **loader_kwargs,
-    )
+    unlabeled_loader = None
+    if do_semi:
+        unsup_bs = int(cfg.get("semi", {}).get("unsup_batch_size", batch_size))
+        unlabeled_loader = DataLoader(
+            unlabeled_set,
+            batch_size=unsup_bs,
+            shuffle=True,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            drop_last=True,
+            **loader_kwargs,
+        )
     test_loader = DataLoader(
         test_set,
         batch_size=batch_size,
@@ -533,7 +547,10 @@ def main(config_path: str):
     )
 
     logger.info(f"train labeled: {len(train_set)}")
-    logger.info(f"train unlabeled: {len(unlabeled_set)}")
+    if do_semi:
+        logger.info(f"train unlabeled: {len(unlabeled_set)}")
+    else:
+        logger.info("train unlabeled: disabled (semi.enabled=false)")
     logger.info(f"valid: {len(valid_set)}")
     logger.info(f"test: {len(test_set)}")
 
@@ -561,7 +578,6 @@ def main(config_path: str):
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs)
 
-    do_semi = bool(cfg["semi"]["enabled"])
     warmup_epochs = int(cfg["semi"]["warmup_epochs"])
     pseudo_threshold = float(cfg["semi"]["pseudo_threshold"])
     lambda_u = float(cfg.get("semi", {}).get("lambda_u", 1.0))
