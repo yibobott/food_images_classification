@@ -39,7 +39,7 @@
     "warmup_epochs": 10,
     "pseudo_threshold": 0.9,
     "pseudo_batch_size": 64,
-    "pseudo_every": 3
+    "pseudo_every": 1
   },
   "output": {
     "best_path": "best-model.pt",
