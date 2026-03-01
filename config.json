@@ -38,7 +38,7 @@
     "enabled": true,
     "warmup_epochs": 12,
     "pseudo_threshold": 0.94,
-    "unsup_batch_size": 256,
+    "unsup_batch_size": 128,
     "lambda_u": 1.0,
     "ema": {
       "decay": 0.999
