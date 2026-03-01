@@ -35,11 +35,11 @@
     "label_smoothing": 0.05
   },
   "semi": {
-    "enabled": false,
-    "warmup_epochs": 12,
-    "pseudo_threshold": 0.94,
+    "enabled": true,
+    "warmup_epochs": 16,
+    "pseudo_threshold": 0.93,
     "unsup_batch_size": 128,
-    "lambda_u": 1.0,
+    "lambda_u": 0.8,
     "ema": {
       "decay": 0.999
     }
