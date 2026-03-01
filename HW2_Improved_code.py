@@ -29,6 +29,7 @@ import json
 import logging
 import sys
 from datetime import datetime
+import copy
 
 
 DEFAULT_CONFIG = {
@@ -71,8 +72,11 @@ DEFAULT_CONFIG = {
         "enabled": True,
         "warmup_epochs": 5,
         "pseudo_threshold": 0.95,
-        "pseudo_batch_size": 256,
-        "pseudo_every": 1
+        "unsup_batch_size": 128,
+        "lambda_u": 1.0,
+        "ema": {
+          "decay": 0.999
+        }
     },
     "output": {
         "best_path": "best-model.pt",
@@ -262,114 +266,129 @@ def resnet18(num_classes=11):
 
 
 
-class PseudoLabelDataset(Dataset):
-    def __init__(self, base_dataset, indices, pseudo_labels, transform=None):
-        self.base = base_dataset
-        self.indices = list(indices)
-        self.pseudo_labels = torch.as_tensor(pseudo_labels, dtype=torch.long)
-        self.transform = transform
+class EMA:
+    """
+    Exponential Moving Average teacher.
+    teacher_params = decay * teacher_params + (1-decay) * student_params
+    """
+    def __init__(self, model: nn.Module, decay: float = 0.999):
+        self.decay = float(decay)
+        self.ema = copy.deepcopy(model)
+        self.ema.eval()
+        for p in self.ema.parameters():
+            p.requires_grad_(False)
 
-        # base_dataset.samples: List[(path, target)]
-        self.paths = [self.base.samples[i][0] for i in self.indices]
+    @torch.no_grad()
+    def update(self, model: nn.Module):
+        d = self.decay
+        msd = model.state_dict()
+        esd = self.ema.state_dict()
+        for k, v in esd.items():
+            if k in msd:
+                esd[k].mul_(d).add_(msd[k].detach(), alpha=1.0 - d)
+
+    def to(self, device):
+        self.ema.to(device)
+        return self
+
+
+class UnlabeledPairDataset(Dataset):
+    """
+    Return (x_weak, x_strong) for the same image path.
+    """
+    def __init__(self, root: str, weak_tfm, strong_tfm):
+        super().__init__()
+        self.root = root
+        self.weak_tfm = weak_tfm
+        self.strong_tfm = strong_tfm
+
+        tmp = DatasetFolder(
+            root,
+            loader=rgb_loader,
+            extensions=("jpg", "jpeg", "png"),
+            transform=None,
+        )
+        # tmp.samples: List[(path, target_dummy)]
+        self.paths = [p for (p, _) in tmp.samples]
 
     def __len__(self):
-        return len(self.indices)
+        return len(self.paths)
 
     def __getitem__(self, idx):
-        path = self.paths[idx]
-        img = Image.open(path).convert('RGB')
-        if self.transform is not None:
-            img = self.transform(img)
-        return img, self.pseudo_labels[idx].item()
+        img = Image.open(self.paths[idx]).convert("RGB")
+        xw = self.weak_tfm(img) if self.weak_tfm is not None else img
+        xs = self.strong_tfm(img) if self.strong_tfm is not None else img
+        return xw, xs
 
 
-@torch.no_grad()
-def get_pseudo_labels(
-    unlabeled_ds,
+
+def train_one_epoch(
     model,
+    ema: EMA,
+    labeled_loader,
+    unlabeled_loader,
+    optimizer,
+    criterion,
     device,
-    img_size,
-    mean,
-    std,
-    train_tfm,
-    num_workers,
-    pin_memory,
-    threshold=0.95,
-    batch_size=256,
+    pseudo_threshold: float = 0.95,
+    lambda_u: float = 1.0,
 ):
-    model.eval()
-
-    # Use a weak transform for more stable pseudo labels (no strong augmentation)
-    weak_tfm = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean, std),
-    ])
-
-    # Build a lightweight view of the unlabeled dataset with weak transform
-    tmp = DatasetFolder(
-        unlabeled_ds.root,
-        loader=rgb_loader,
-        extensions=("jpg", "jpeg", "png"),
-        transform=weak_tfm,
-    )
-    loader_kwargs = {}
-    if num_workers > 0:
-        loader_kwargs["persistent_workers"] = True
-        loader_kwargs["prefetch_factor"] = 2
-    loader = DataLoader(
-        tmp,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        **loader_kwargs,
-    )
-
-    all_conf = []
-    all_pred = []
-
-    softmax = nn.Softmax(dim=-1)
-    for imgs, _ in tqdm(loader, desc="Pseudo-labeling", leave=False):
-        logits = model(imgs.to(device, non_blocking=True))
-        probs = softmax(logits)
-        conf, pred = probs.max(dim=-1)
-        all_conf.append(conf.cpu())
-        all_pred.append(pred.cpu())
-
-    conf = torch.cat(all_conf)
-    pred = torch.cat(all_pred)
-
-    mask = conf >= threshold
-    indices = mask.nonzero(as_tuple=False).squeeze(1).tolist()
-    pseudo_labels = pred[mask].tolist()
-
-    pseudo_ds = PseudoLabelDataset(tmp, indices, pseudo_labels, transform=train_tfm)  # train_tfm = strong augmentation
     model.train()
-    return pseudo_ds, float(mask.float().mean().item()), len(pseudo_ds)
+    ema.ema.eval()
 
-
-
-def train_one_epoch(model, loader, optimizer, criterion, device):
-    model.train()
     losses, accs = [], []
-    for imgs, labels in tqdm(loader, desc="Train", leave=False):
-        imgs = imgs.to(device, non_blocking=True)
-        labels = labels.to(device, non_blocking=True)
+    mask_ratios = []
 
-        logits = model(imgs)
-        loss = criterion(logits, labels)
+    # unlabeled iterator (cycle)
+    unl_it = iter(unlabeled_loader)
+
+    for imgs_x, labels_x in tqdm(labeled_loader, desc="Train", leave=False):
+        try:
+            xw_u, xs_u = next(unl_it)
+        except StopIteration:
+            unl_it = iter(unlabeled_loader)
+            xw_u, xs_u = next(unl_it)
+
+        imgs_x = imgs_x.to(device, non_blocking=True)
+        labels_x = labels_x.to(device, non_blocking=True)
+
+        xw_u = xw_u.to(device, non_blocking=True)
+        xs_u = xs_u.to(device, non_blocking=True)
+
+        # supervised
+        logits_x = model(imgs_x)
+        loss_x = criterion(logits_x, labels_x)
+
+        # unsupervised (teacher on weak, student on strong)
+        with torch.no_grad():
+            t_logits = ema.ema(xw_u)
+            t_prob = torch.softmax(t_logits, dim=-1)
+            t_conf, t_pred = t_prob.max(dim=-1)
+            mask = (t_conf >= float(pseudo_threshold)).float()
+            mask_ratios.append(mask.mean().item())
+
+        s_logits_u = model(xs_u)
+        loss_u_all = torch.nn.functional.cross_entropy(s_logits_u, t_pred, reduction="none")
+        # avoid div-by-0
+        denom = mask.sum().clamp(min=1.0)
+        loss_u = (loss_u_all * mask).sum() / denom
+
+        loss = loss_x + float(lambda_u) * loss_u
 
         optimizer.zero_grad()
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), 10.0)
         optimizer.step()
 
-        acc = (logits.argmax(dim=-1) == labels).float().mean().item()
+        # EMA update AFTER student step
+        ema.update(model)
+
+        acc = (logits_x.argmax(dim=-1) == labels_x).float().mean().item()
         losses.append(loss.item())
         accs.append(acc)
 
-    return float(np.mean(losses)), float(np.mean(accs))
+    mr = float(np.mean(mask_ratios)) if len(mask_ratios) > 0 else 0.0
+    return float(np.mean(losses)), float(np.mean(accs)), mr
 
 
 @torch.no_grad()
@@ -439,6 +458,14 @@ def main(config_path: str):
         transforms.Normalize(mean, std),
     ])
 
+    # weak augmentation for teacher (stable pseudo labels)
+    weak_tfm = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        transforms.RandomHorizontalFlip(p=float(cfg["augment"]["horizontal_flip_p"])),
+        transforms.ToTensor(),
+        transforms.Normalize(mean, std),
+    ])
+
     # Construct datasets
     train_set = DatasetFolder(
         cfg["data"]["train_labeled"],
@@ -452,11 +479,10 @@ def main(config_path: str):
         extensions=("jpg", "jpeg", "png"),
         transform=test_tfm,
     )
-    unlabeled_set = DatasetFolder(
+    unlabeled_set = UnlabeledPairDataset(
         cfg["data"]["train_unlabeled"],
-        loader=rgb_loader,
-        extensions=("jpg", "jpeg", "png"),
-        transform=train_tfm,
+        weak_tfm=weak_tfm,
+        strong_tfm=train_tfm, # strong aug for student
     )
     test_set = DatasetFolder(
         cfg["data"]["test"],
@@ -487,6 +513,16 @@ def main(config_path: str):
         pin_memory=pin_memory,
         **loader_kwargs,
     )
+    unsup_bs = int(cfg.get("semi", {}).get("unsup_batch_size", batch_size))
+    unlabeled_loader = DataLoader(
+        unlabeled_set,
+        batch_size=unsup_bs,
+        shuffle=True,
+        num_workers=num_workers,
+        pin_memory=pin_memory,
+        drop_last=True,
+        **loader_kwargs,
+    )
     test_loader = DataLoader(
         test_set,
         batch_size=batch_size,
@@ -506,6 +542,10 @@ def main(config_path: str):
     # ===========
 
     model = resnet18(num_classes=11).to(device)
+
+    ema_decay = float(cfg.get("semi", {}).get("ema", {}).get("decay", 0.999))
+    ema = EMA(model, decay=ema_decay).to(device)
+
     logger.info(f"#params: {sum(p.numel() for p in model.parameters()) / 1e6:.3f} M")
 
     # ===========
@@ -524,61 +564,58 @@ def main(config_path: str):
     do_semi = bool(cfg["semi"]["enabled"])
     warmup_epochs = int(cfg["semi"]["warmup_epochs"])
     pseudo_threshold = float(cfg["semi"]["pseudo_threshold"])
-    pseudo_batch_size = int(cfg["semi"]["pseudo_batch_size"])
-    pseudo_every = int(cfg["semi"]["pseudo_every"])
+    lambda_u = float(cfg.get("semi", {}).get("lambda_u", 1.0))
 
     best_acc = 0.0
     best_path = _append_date_suffix(str(cfg["output"]["best_path"]), date)
 
-    # do semi-supervised learning
+    # do semi-supervised learning (FixMatch-style, no ConcatDataset)
     for epoch in range(1, n_epochs + 1):
-        if do_semi and epoch > warmup_epochs and (epoch % pseudo_every == 0):
-            pseudo_ds, keep_ratio, keep_n = get_pseudo_labels(
-                unlabeled_set,
-                model,
-                device,
-                img_size,
-                mean,
-                std,
-                train_tfm,
-                num_workers,
-                pin_memory,
-                threshold=pseudo_threshold,
-                batch_size=pseudo_batch_size,
-            )
-            logger.info(f"[Semi] epoch {epoch}: keep_ratio={keep_ratio:.3f}, kept={keep_n}")
-            # rebuild train loader
-            concat_ds = ConcatDataset([train_set, pseudo_ds])
-            train_loader_epoch = DataLoader(
-                concat_ds,
-                batch_size=batch_size,
-                shuffle=True,
-                num_workers=num_workers,
-                pin_memory=pin_memory,
-                **loader_kwargs,
-            )
-        else:
-            train_loader_epoch = train_loader
+        # warmup: you can disable unsup loss before warmup_epochs
+        use_unsup = do_semi and (epoch > warmup_epochs)
 
-        tr_loss, tr_acc = train_one_epoch(model, train_loader_epoch, optimizer, criterion, device)
-        va_loss, va_acc = valid_one_epoch(model, valid_loader, criterion, device)
+        tr_loss, tr_acc, tr_mask = train_one_epoch(
+            model=model,
+            ema=ema,
+            labeled_loader=train_loader,
+            unlabeled_loader=unlabeled_loader,
+            optimizer=optimizer,
+            criterion=criterion,
+            device=device,
+            pseudo_threshold=pseudo_threshold if use_unsup else 1.1,  # effectively keep none in warmup
+            lambda_u=lambda_u if use_unsup else 0.0,
+        )
+
+        # Validate with EMA teacher (your final inference target)
+        va_loss, va_acc = valid_one_epoch(ema.ema, valid_loader, criterion, device)
+
         scheduler.step()
 
         logger.info(
-            f"Epoch {epoch:02d}/{n_epochs} | train loss {tr_loss:.4f} acc {tr_acc:.4f} | valid loss {va_loss:.4f} acc {va_acc:.4f} | lr {scheduler.get_last_lr()[0]:.2e}"
+            f"Epoch {epoch:02d}/{n_epochs} | train loss {tr_loss:.4f} acc {tr_acc:.4f} mask {tr_mask:.3f} | "
+            f"valid loss {va_loss:.4f} acc {va_acc:.4f} | lr {scheduler.get_last_lr()[0]:.2e}"
         )
 
         if va_acc > best_acc:
             best_acc = va_acc
-            torch.save(model.state_dict(), best_path)
-            logger.info(f"  -> saved best: {best_acc:.4f} ({best_path})")
+            torch.save(
+                {"student": model.state_dict(), "ema": ema.ema.state_dict(), "best_acc": best_acc},
+                best_path
+            )
+            logger.info(f"  -> saved best (EMA): {best_acc:.4f} ({best_path})")
 
     # ===========
     # Testing
     # ===========
 
-    # Load best checkpoint
-    model.load_state_dict(torch.load(best_path, map_location=device))
+    # Load best checkpoint (EMA teacher)
+    ckpt = torch.load(best_path, map_location=device)
+    if isinstance(ckpt, dict) and "ema" in ckpt:
+        model.load_state_dict(ckpt["ema"])
+    else:
+        # fallback (older checkpoints)
+        model.load_state_dict(ckpt)
+
     model.eval()
 
     predictions = []

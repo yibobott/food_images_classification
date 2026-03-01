@@ -38,8 +38,11 @@
     "enabled": true,
     "warmup_epochs": 20,
     "pseudo_threshold": 0.97,
-    "pseudo_batch_size": 256,
-    "pseudo_every": 2
+    "unsup_batch_size": 128,
+    "lambda_u": 1.0,
+    "ema": {
+      "decay": 0.999
+    }
   },
   "output": {
     "best_path": "best-model.pt",
