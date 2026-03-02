@@ -33,9 +33,11 @@
     "lr": 0.0007,
     "weight_decay": 0.0002,
     "label_smoothing": 0.05,
-    "mixup": {
+    "mix": {
       "enabled": true,
-      "alpha": 0.2
+      "alpha": 1.0,
+      "mode": "cutmix",
+      "_comment": "mode can be 'mixup' or 'cutmix'"
     }
   },
   "semi": {

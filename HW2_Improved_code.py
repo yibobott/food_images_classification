@@ -67,9 +67,10 @@ DEFAULT_CONFIG = {
         "lr": 3e-4,
         "weight_decay": 1e-4,
         "label_smoothing": 0.1,
-        "mixup": {
+        "mix": {
             "enabled": False,
-            "alpha": 0.2
+            "alpha": 0.2,
+            "mode": "mixup" # mode can be mixup or cutmix
         }
     },
     "semi": {
@@ -331,6 +332,19 @@ class UnlabeledPairDataset(Dataset):
         return xw, xs
 
 
+def rand_bbox(H, W, lam):
+    # Return (y1, x1, y2, x2) for CutMix given image size and lambda.
+    cut_ratio = np.sqrt(1.0 - lam)
+    cut_h = int(round(H * cut_ratio))
+    cut_w = int(round(W * cut_ratio))
+    cy = np.random.randint(H)
+    cx = np.random.randint(W)
+    y1 = max(0, cy - cut_h // 2)
+    x1 = max(0, cx - cut_w // 2)
+    y2 = min(H, cy + cut_h // 2)
+    x2 = min(W, cx + cut_w // 2)
+    return y1, x1, y2, x2
+
 
 def train_one_epoch(
     model,
@@ -344,6 +358,7 @@ def train_one_epoch(
     lambda_u: float = 1.0,
     mixup_enabled: bool = False,
     mixup_alpha: float = 0.2,
+    mixup_mode: str = "mixup",
 ):
     model.train()
     ema.ema.eval()
@@ -364,11 +379,17 @@ def train_one_epoch(
         do_mixup = bool(mixup_enabled) and float(mixup_alpha) > 0.0 and imgs_x.size(0) > 1
         if do_mixup:
             lam = float(np.random.beta(float(mixup_alpha), float(mixup_alpha)))
-            lam = max(lam, 1.0 - lam)
             perm = torch.randperm(imgs_x.size(0), device=imgs_x.device)
-            imgs_mix = lam * imgs_x + (1.0 - lam) * imgs_x[perm]
             labels_a = labels_x
             labels_b = labels_x[perm]
+            if mixup_mode == "cutmix":
+                imgs_mix = imgs_x.clone()
+                y1, x1, y2, x2 = rand_bbox(imgs_x.size(2), imgs_x.size(3), lam)
+                imgs_mix[:, :, y1:y2, x1:x2] = imgs_x[perm, :, y1:y2, x1:x2]
+                lam = 1.0 - float((y2 - y1) * (x2 - x1)) / float(imgs_x.size(2) * imgs_x.size(3))
+            else:
+                lam = max(lam, 1.0 - lam)
+                imgs_mix = lam * imgs_x + (1.0 - lam) * imgs_x[perm]
             logits_x = model(imgs_mix)
             loss_x = lam * criterion(logits_x, labels_a) + (1.0 - lam) * criterion(logits_x, labels_b)
             with torch.no_grad():
@@ -618,8 +639,9 @@ def main(config_path: str):
     weight_decay = float(cfg["train"]["weight_decay"])
     label_smoothing = float(cfg["train"]["label_smoothing"])
 
-    mixup_enabled = bool(cfg.get("train", {}).get("mixup", {}).get("enabled", False))
-    mixup_alpha = float(cfg.get("train", {}).get("mixup", {}).get("alpha", 0.2))
+    mixup_enabled = bool(cfg.get("train", {}).get("mix", {}).get("enabled", False))
+    mixup_alpha = float(cfg.get("train", {}).get("mix", {}).get("alpha", 0.2))
+    mixup_mode = str(cfg.get("train", {}).get("mix", {}).get("mode", "mixup"))
 
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -659,6 +681,7 @@ def main(config_path: str):
             lambda_u=lambda_u_eff,
             mixup_enabled=mixup_enabled,
             mixup_alpha=mixup_alpha,
+            mixup_mode=mixup_mode,
         )
 
         # Validate with EMA teacher (your final inference target)
