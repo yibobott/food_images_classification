@@ -37,7 +37,7 @@
   "semi": {
     "enabled": true,
     "warmup_epochs": 8,
-    "pseudo_threshold": 0.90,
+    "pseudo_threshold": 0.92,
     "unsup_batch_size": 128,
     "lambda_u": 0.6,
     "lambda_u_ramp_epochs": 30,
