@@ -581,6 +581,7 @@ def main(config_path: str):
     warmup_epochs = int(cfg["semi"]["warmup_epochs"])
     pseudo_threshold = float(cfg["semi"]["pseudo_threshold"])
     lambda_u = float(cfg.get("semi", {}).get("lambda_u", 1.0))
+    lambda_u_ramp_epochs = int(cfg.get("semi", {}).get("lambda_u_ramp_epochs", 30))
 
     best_acc = 0.0
     best_path = _append_date_suffix(str(cfg["output"]["best_path"]), date)
@@ -589,6 +590,15 @@ def main(config_path: str):
     for epoch in range(1, n_epochs + 1):
         # warmup: you can disable unsup loss before warmup_epochs
         use_unsup = do_semi and (epoch > warmup_epochs)
+
+        if use_unsup:
+            if lambda_u_ramp_epochs > 0:
+                ramp = min(1.0, float(epoch - warmup_epochs) / float(lambda_u_ramp_epochs))
+                lambda_u_eff = float(lambda_u) * ramp
+            else:
+                lambda_u_eff = float(lambda_u)
+        else:
+            lambda_u_eff = 0.0
 
         tr_loss, tr_acc, tr_mask = train_one_epoch(
             model=model,
@@ -599,7 +609,7 @@ def main(config_path: str):
             criterion=criterion,
             device=device,
             pseudo_threshold=pseudo_threshold if use_unsup else 1.1,  # effectively keep none in warmup
-            lambda_u=lambda_u if use_unsup else 0.0,
+            lambda_u=lambda_u_eff,
         )
 
         # Validate with EMA teacher (your final inference target)
@@ -608,7 +618,7 @@ def main(config_path: str):
         scheduler.step()
 
         logger.info(
-            f"Epoch {epoch:02d}/{n_epochs} | train loss {tr_loss:.4f} acc {tr_acc:.4f} mask {tr_mask:.3f} | "
+            f"Epoch {epoch:02d}/{n_epochs} | train loss {tr_loss:.4f} acc {tr_acc:.4f} mask {tr_mask:.3f} u {lambda_u_eff:.3f} | "
             f"valid loss {va_loss:.4f} acc {va_acc:.4f} | lr {scheduler.get_last_lr()[0]:.2e}"
         )
 

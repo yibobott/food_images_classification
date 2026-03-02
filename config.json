@@ -40,6 +40,7 @@
     "pseudo_threshold": 0.90,
     "unsup_batch_size": 128,
     "lambda_u": 0.6,
+    "lambda_u_ramp_epochs": 30,
     "ema": {
       "decay": 0.999
     }
