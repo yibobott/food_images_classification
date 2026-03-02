@@ -74,6 +74,8 @@ DEFAULT_CONFIG = {
         "pseudo_threshold": 0.95,
         "unsup_batch_size": 128,
         "lambda_u": 1.0,
+        "randaugment_num_ops": 2,
+        "randaugment_magnitude": 9,
         "ema": {
           "decay": 0.999
         }
@@ -447,6 +449,9 @@ def main(config_path: str):
     rrc_scale = tuple(float(x) for x in cfg["augment"]["random_resized_crop_scale"])
     rrc_ratio = tuple(float(x) for x in cfg["augment"]["random_resized_crop_ratio"])
 
+    ra_num_ops = int(cfg.get("semi", {}).get("randaugment_num_ops", 2))
+    ra_magnitude = int(cfg.get("semi", {}).get("randaugment_magnitude", 9))
+
     # data augmentation in training
     train_tfm = transforms.Compose([
         transforms.RandomResizedCrop(img_size, scale=rrc_scale, ratio=rrc_ratio),
@@ -473,7 +478,7 @@ def main(config_path: str):
                 saturation=float(cj["saturation"]),
                 hue=float(cj["hue"]),
             ),
-            transforms.RandAugment(num_ops=2, magnitude=9),
+            transforms.RandAugment(num_ops=ra_num_ops, magnitude=ra_magnitude),
             transforms.ToTensor(),
             transforms.Normalize(mean, std),
         ])
