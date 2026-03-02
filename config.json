@@ -7,7 +7,7 @@
     "test": "food11/testing"
   },
   "dataloader": {
-    "batch_size": 128,
+    "batch_size": 64,
     "num_workers": 8,
     "pin_memory": true
   },
@@ -20,26 +20,36 @@
     "random_resized_crop_scale": [0.7, 1.0],
     "random_resized_crop_ratio": [0.9, 1.1],
     "horizontal_flip_p": 0.5,
-    "rotation_deg": 15,
+    "rotation_deg": 10,
     "color_jitter": {
-      "brightness": 0.2,
-      "contrast": 0.2,
-      "saturation": 0.2,
+      "brightness": 0.25,
+      "contrast": 0.25,
+      "saturation": 0.25,
       "hue": 0.05
     }
   },
   "train": {
-    "n_epochs": 50,
-    "lr": 0.001,
-    "weight_decay": 0.0001,
-    "label_smoothing": 0.1
+    "n_epochs": 220,
+    "lr": 0.0007,
+    "weight_decay": 0.0002,
+    "label_smoothing": 0.1,
+    "mixup": {
+      "enabled": true,
+      "alpha": 0.2
+    }
   },
   "semi": {
     "enabled": true,
-    "warmup_epochs": 10,
-    "pseudo_threshold": 0.9,
-    "pseudo_batch_size": 128,
-    "pseudo_every": 3
+    "warmup_epochs": 8,
+    "pseudo_threshold": 0.92,
+    "unsup_batch_size": 128,
+    "lambda_u": 0.4,
+    "lambda_u_ramp_epochs": 30,
+    "randaugment_num_ops": 2,
+    "randaugment_magnitude": 9,
+    "ema": {
+      "decay": 0.999
+    }
   },
   "output": {
     "best_path": "best-model.pt",

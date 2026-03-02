@@ -29,6 +29,7 @@ import json
 import logging
 import sys
 from datetime import datetime
+import copy
 
 
 DEFAULT_CONFIG = {
@@ -66,13 +67,22 @@ DEFAULT_CONFIG = {
         "lr": 3e-4,
         "weight_decay": 1e-4,
         "label_smoothing": 0.1,
+        "mixup": {
+            "enabled": False,
+            "alpha": 0.2
+        }
     },
     "semi": {
         "enabled": True,
         "warmup_epochs": 5,
         "pseudo_threshold": 0.95,
-        "pseudo_batch_size": 256,
-        "pseudo_every": 1
+        "unsup_batch_size": 128,
+        "lambda_u": 1.0,
+        "randaugment_num_ops": 2,
+        "randaugment_magnitude": 9,
+        "ema": {
+          "decay": 0.999
+        }
     },
     "output": {
         "best_path": "best-model.pt",
@@ -142,175 +152,274 @@ def _build_logger(date: str) -> logging.Logger:
     logger.propagate = False
     return logger
 
+# ===========
+# CIFAR-style ResNet-18 (BasicBlock) from scratch
+# - 3x3 stem, stride=1
+# - NO maxpool
+# - NO pretrained weights
+# ===========
 
+def conv3x3(in_planes, out_planes, stride=1):
+    return nn.Conv2d(
+        in_planes, out_planes, kernel_size=3, stride=stride, padding=1, bias=False
+    )
 
-class BasicBlock(nn.Module):
-    def __init__(self, in_ch, out_ch, stride=1):
+def conv1x1(in_planes, out_planes, stride=1):
+    return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
+
+class ResNetBasicBlock(nn.Module):
+    expansion = 1
+
+    def __init__(self, in_planes, planes, stride=1):
         super().__init__()
-        self.conv1 = nn.Conv2d(in_ch, out_ch, 3, stride=stride, padding=1, bias=False)
-        self.bn1 = nn.BatchNorm2d(out_ch)
-        self.conv2 = nn.Conv2d(out_ch, out_ch, 3, stride=1, padding=1, bias=False)
-        self.bn2 = nn.BatchNorm2d(out_ch)
+        self.conv1 = conv3x3(in_planes, planes, stride=stride)
+        self.bn1 = nn.BatchNorm2d(planes)
+        self.conv2 = conv3x3(planes, planes, stride=1)
+        self.bn2 = nn.BatchNorm2d(planes)
 
-        self.shortcut = nn.Identity()
-        if stride != 1 or in_ch != out_ch:
-            self.shortcut = nn.Sequential(
-                nn.Conv2d(in_ch, out_ch, 1, stride=stride, bias=False),
-                nn.BatchNorm2d(out_ch),
+        self.downsample = None
+        if stride != 1 or in_planes != planes * self.expansion:
+            self.downsample = nn.Sequential(
+                conv1x1(in_planes, planes * self.expansion, stride=stride),
+                nn.BatchNorm2d(planes * self.expansion),
             )
 
     def forward(self, x):
-        out = F.relu(self.bn1(self.conv1(x)))
-        out = self.bn2(self.conv2(out))
-        out = out + self.shortcut(x)
-        out = F.relu(out)
+        identity = x
+
+        out = self.conv1(x)
+        out = self.bn1(out)
+        out = F.relu(out, inplace=True)
+
+        out = self.conv2(out)
+        out = self.bn2(out)
+
+        if self.downsample is not None:
+            identity = self.downsample(x)
+
+        out = out + identity
+        out = F.relu(out, inplace=True)
         return out
 
 
-class SmallResNet(nn.Module):
-    def __init__(self, num_classes=11):
-        super().__init__()
-        # from [batch_size, 3, 128, 128] to [batch_size, 64, 128, 128]
-        self.stem = nn.Sequential(
-            nn.Conv2d(3, 64, 3, stride=1, padding=1, bias=False),
-            nn.BatchNorm2d(64),
-            nn.ReLU(),
-        )
+class ResNet(nn.Module):
+    """
+    CIFAR-style stem:
+      - conv3x3 stride=1
+      - no maxpool
 
-        # layer1 output: [batch_size, 64, 128, 128]
-        self.layer1 = nn.Sequential(BasicBlock(64, 64), BasicBlock(64, 64))
-        # layer2 output: [batch_size, 128, 64, 64]
-        self.layer2 = nn.Sequential(BasicBlock(64, 128, stride=2), BasicBlock(128, 128))
-        # layer3 output: [batch_size, 256, 32, 32]
-        self.layer3 = nn.Sequential(BasicBlock(128, 256, stride=2), BasicBlock(256, 256))
-        # layer4 output: [batch_size, 512, 16, 16]
-        self.layer4 = nn.Sequential(BasicBlock(256, 512, stride=2), BasicBlock(512, 512))
-        # pool output: [batch_size, 512, 1, 1]
-        self.pool = nn.AdaptiveAvgPool2d((1, 1))
-        # output: [batch_size, 11]
-        self.fc = nn.Linear(512, num_classes)
+    For 128x128 input:
+      - after stem: 128x128
+      - layer2 stride2 -> 64x64
+      - layer3 stride2 -> 32x32
+      - layer4 stride2 -> 16x16
+      - avgpool -> 1x1
+    """
+    def __init__(self, block, layers, num_classes=11, base_width=64):
+        super().__init__()
+        self.inplanes = base_width
+
+        # CIFAR-style stem
+        self.conv1 = nn.Conv2d(3, base_width, kernel_size=3, stride=1, padding=1, bias=False)
+        self.bn1 = nn.BatchNorm2d(base_width)
+        self.relu = nn.ReLU(inplace=True)
+
+        # Stages (same 2-2-2-2 for ResNet18)
+        self.layer1 = self._make_layer(block, base_width,     layers[0], stride=1)
+        self.layer2 = self._make_layer(block, base_width * 2, layers[1], stride=2)
+        self.layer3 = self._make_layer(block, base_width * 4, layers[2], stride=2)
+        self.layer4 = self._make_layer(block, base_width * 8, layers[3], stride=2)
+
+        self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.fc = nn.Linear(base_width * 8 * block.expansion, num_classes)
+
+        # Kaiming init
+        for m in self.modules():
+            if isinstance(m, nn.Conv2d):
+                nn.init.kaiming_normal_(m.weight, mode="fan_out", nonlinearity="relu")
+            elif isinstance(m, nn.BatchNorm2d):
+                nn.init.constant_(m.weight, 1.0)
+                nn.init.constant_(m.bias, 0.0)
+
+    def _make_layer(self, block, planes, blocks, stride):
+        layers = []
+        layers.append(block(self.inplanes, planes, stride=stride))
+        self.inplanes = planes * block.expansion
+        for _ in range(1, blocks):
+            layers.append(block(self.inplanes, planes, stride=1))
+        return nn.Sequential(*layers)
 
     def forward(self, x):
-        x = self.stem(x)
+        # stem
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
+
+        # stages
         x = self.layer1(x)
         x = self.layer2(x)
         x = self.layer3(x)
         x = self.layer4(x)
-        # output: [batch_size, 512]
-        x = self.pool(x).flatten(1)
+
+        # head
+        x = self.avgpool(x).flatten(1)
         x = self.fc(x)
         return x
 
 
+def resnet18(num_classes=11):
+    return ResNet(ResNetBasicBlock, [2, 2, 2, 2], num_classes=num_classes, base_width=64)
 
-class PseudoLabelDataset(Dataset):
-    def __init__(self, base_dataset, indices, pseudo_labels, transform=None):
-        self.base = base_dataset
-        self.indices = list(indices)
-        self.pseudo_labels = torch.as_tensor(pseudo_labels, dtype=torch.long)
-        self.transform = transform
 
-        # base_dataset.samples: List[(path, target)]
-        self.paths = [self.base.samples[i][0] for i in self.indices]
+
+class EMA:
+    """
+    Exponential Moving Average teacher.
+    teacher_params = decay * teacher_params + (1-decay) * student_params
+    """
+    def __init__(self, model: nn.Module, decay: float = 0.999):
+        self.decay = float(decay)
+        self.ema = copy.deepcopy(model)
+        self.ema.eval()
+        for p in self.ema.parameters():
+            p.requires_grad_(False)
+
+    @torch.no_grad()
+    def update(self, model: nn.Module):
+        d = self.decay
+        msd = model.state_dict()
+        esd = self.ema.state_dict()
+        for k, v in esd.items():
+            if k in msd:
+                model_v = msd[k].detach()
+                if torch.is_floating_point(v):
+                    v.mul_(d).add_(model_v, alpha=1.0 - d)
+                else:
+                    v.copy_(model_v)
+
+    def to(self, device):
+        self.ema.to(device)
+        return self
+
+
+class UnlabeledPairDataset(Dataset):
+    """
+    Return (x_weak, x_strong) for the same image path.
+    """
+    def __init__(self, root: str, weak_tfm, strong_tfm):
+        super().__init__()
+        self.root = root
+        self.weak_tfm = weak_tfm
+        self.strong_tfm = strong_tfm
+
+        tmp = DatasetFolder(
+            root,
+            loader=rgb_loader,
+            extensions=("jpg", "jpeg", "png"),
+            transform=None,
+        )
+        # tmp.samples: List[(path, target_dummy)]
+        self.paths = [p for (p, _) in tmp.samples]
 
     def __len__(self):
-        return len(self.indices)
+        return len(self.paths)
 
     def __getitem__(self, idx):
-        path = self.paths[idx]
-        img = Image.open(path).convert('RGB')
-        if self.transform is not None:
-            img = self.transform(img)
-        return img, self.pseudo_labels[idx].item()
+        img = Image.open(self.paths[idx]).convert("RGB")
+        xw = self.weak_tfm(img) if self.weak_tfm is not None else img
+        xs = self.strong_tfm(img) if self.strong_tfm is not None else img
+        return xw, xs
 
 
-@torch.no_grad()
-def get_pseudo_labels(
-    unlabeled_ds,
+
+def train_one_epoch(
     model,
+    ema: EMA,
+    labeled_loader,
+    unlabeled_loader,
+    optimizer,
+    criterion,
     device,
-    img_size,
-    mean,
-    std,
-    train_tfm,
-    num_workers,
-    pin_memory,
-    threshold=0.95,
-    batch_size=256,
+    pseudo_threshold: float = 0.95,
+    lambda_u: float = 1.0,
+    mixup_enabled: bool = False,
+    mixup_alpha: float = 0.2,
 ):
-    model.eval()
-
-    # Use a weak transform for more stable pseudo labels (no strong augmentation)
-    weak_tfm = transforms.Compose([
-        transforms.Resize((img_size, img_size)),
-        transforms.ToTensor(),
-        transforms.Normalize(mean, std),
-    ])
-
-    # Build a lightweight view of the unlabeled dataset with weak transform
-    tmp = DatasetFolder(
-        unlabeled_ds.root,
-        loader=rgb_loader,
-        extensions=("jpg", "jpeg", "png"),
-        transform=weak_tfm,
-    )
-    loader_kwargs = {}
-    if num_workers > 0:
-        loader_kwargs["persistent_workers"] = True
-        loader_kwargs["prefetch_factor"] = 2
-    loader = DataLoader(
-        tmp,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        **loader_kwargs,
-    )
-
-    all_conf = []
-    all_pred = []
-
-    softmax = nn.Softmax(dim=-1)
-    for imgs, _ in tqdm(loader, desc="Pseudo-labeling", leave=False):
-        logits = model(imgs.to(device))
-        probs = softmax(logits)
-        conf, pred = probs.max(dim=-1)
-        all_conf.append(conf.cpu())
-        all_pred.append(pred.cpu())
-
-    conf = torch.cat(all_conf)
-    pred = torch.cat(all_pred)
-
-    mask = conf >= threshold
-    indices = mask.nonzero(as_tuple=False).squeeze(1).tolist()
-    pseudo_labels = pred[mask].tolist()
-
-    pseudo_ds = PseudoLabelDataset(tmp, indices, pseudo_labels, transform=train_tfm)  # train_tfm = strong augmentation
     model.train()
-    return pseudo_ds, float(mask.float().mean().item()), len(pseudo_ds)
+    ema.ema.eval()
 
-
-
-def train_one_epoch(model, loader, optimizer, criterion, device):
-    model.train()
     losses, accs = [], []
-    for imgs, labels in tqdm(loader, desc="Train", leave=False):
-        imgs = imgs.to(device, non_blocking=True)
-        labels = labels.to(device, non_blocking=True)
+    mask_ratios = []
 
-        logits = model(imgs)
-        loss = criterion(logits, labels)
+    # unlabeled iterator (cycle), only when unsupervised branch is enabled
+    unl_it = None
+    if unlabeled_loader is not None and float(lambda_u) > 0.0:
+        unl_it = iter(unlabeled_loader)
+
+    for imgs_x, labels_x in tqdm(labeled_loader, desc="Train", leave=False):
+        imgs_x = imgs_x.to(device, non_blocking=True)
+        labels_x = labels_x.to(device, non_blocking=True)
+
+        # supervised
+        do_mixup = bool(mixup_enabled) and float(mixup_alpha) > 0.0 and imgs_x.size(0) > 1
+        if do_mixup:
+            lam = float(np.random.beta(float(mixup_alpha), float(mixup_alpha)))
+            lam = max(lam, 1.0 - lam)
+            perm = torch.randperm(imgs_x.size(0), device=imgs_x.device)
+            imgs_mix = lam * imgs_x + (1.0 - lam) * imgs_x[perm]
+            labels_a = labels_x
+            labels_b = labels_x[perm]
+            logits_x = model(imgs_mix)
+            loss_x = lam * criterion(logits_x, labels_a) + (1.0 - lam) * criterion(logits_x, labels_b)
+            with torch.no_grad():
+                logits_acc = model(imgs_x)
+        else:
+            logits_x = model(imgs_x)
+            loss_x = criterion(logits_x, labels_x)
+            logits_acc = logits_x
+
+        if unl_it is not None:
+            try:
+                xw_u, xs_u = next(unl_it)
+            except StopIteration:
+                unl_it = iter(unlabeled_loader)
+                xw_u, xs_u = next(unl_it)
+
+            xw_u = xw_u.to(device, non_blocking=True)
+            xs_u = xs_u.to(device, non_blocking=True)
+
+            # unsupervised (teacher on weak, student on strong)
+            with torch.no_grad():
+                t_logits = ema.ema(xw_u)
+                t_prob = torch.softmax(t_logits, dim=-1)
+                t_conf, t_pred = t_prob.max(dim=-1)
+                mask = (t_conf >= float(pseudo_threshold)).float()
+                mask_ratios.append(mask.mean().item())
+
+            s_logits_u = model(xs_u)
+            loss_u_all = torch.nn.functional.cross_entropy(s_logits_u, t_pred, reduction="none")
+            # avoid div-by-0
+            denom = mask.sum().clamp(min=1.0)
+            loss_u = (loss_u_all * mask).sum() / denom
+            loss = loss_x + float(lambda_u) * loss_u
+        else:
+            mask_ratios.append(0.0)
+            loss = loss_x
 
         optimizer.zero_grad()
         loss.backward()
         nn.utils.clip_grad_norm_(model.parameters(), 10.0)
         optimizer.step()
 
-        acc = (logits.argmax(dim=-1) == labels).float().mean().item()
+        # EMA update AFTER student step
+        ema.update(model)
+
+        acc = (logits_acc.argmax(dim=-1) == labels_x).float().mean().item()
         losses.append(loss.item())
         accs.append(acc)
 
-    return float(np.mean(losses)), float(np.mean(accs))
+    mr = float(np.mean(mask_ratios)) if len(mask_ratios) > 0 else 0.0
+    return float(np.mean(losses)), float(np.mean(accs)), mr
 
 
 @torch.no_grad()
@@ -351,6 +460,7 @@ def main(config_path: str):
     batch_size = int(cfg["dataloader"]["batch_size"])
     num_workers = int(cfg["dataloader"]["num_workers"])
     pin_memory = bool(cfg["dataloader"]["pin_memory"])
+    do_semi = bool(cfg["semi"]["enabled"])
 
     mean = tuple(float(x) for x in cfg["image"]["mean"])
     std = tuple(float(x) for x in cfg["image"]["std"])
@@ -358,6 +468,9 @@ def main(config_path: str):
     cj = cfg["augment"]["color_jitter"]
     rrc_scale = tuple(float(x) for x in cfg["augment"]["random_resized_crop_scale"])
     rrc_ratio = tuple(float(x) for x in cfg["augment"]["random_resized_crop_ratio"])
+
+    ra_num_ops = int(cfg.get("semi", {}).get("randaugment_num_ops", 2))
+    ra_magnitude = int(cfg.get("semi", {}).get("randaugment_magnitude", 9))
 
     # data augmentation in training
     train_tfm = transforms.Compose([
@@ -374,8 +487,35 @@ def main(config_path: str):
         transforms.Normalize(mean, std),
     ])
 
+    if hasattr(transforms, "RandAugment"):
+        unlabeled_strong_tfm = transforms.Compose([
+            transforms.RandomResizedCrop(img_size, scale=rrc_scale, ratio=rrc_ratio),
+            transforms.RandomHorizontalFlip(p=float(cfg["augment"]["horizontal_flip_p"])),
+            # transforms.RandomRotation(float(cfg["augment"]["rotation_deg"])),
+            # transforms.ColorJitter(
+            #     brightness=float(cj["brightness"]),
+            #     contrast=float(cj["contrast"]),
+            #     saturation=float(cj["saturation"]),
+            #     hue=float(cj["hue"]),
+            # ),
+            transforms.RandAugment(num_ops=ra_num_ops, magnitude=ra_magnitude),
+            transforms.ToTensor(),
+            transforms.Normalize(mean, std),
+        ])
+    else:
+        logger.warning("There is no RandAugment in the current torchvision version.")
+        unlabeled_strong_tfm = train_tfm
+
     test_tfm = transforms.Compose([
         transforms.Resize((img_size, img_size)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean, std),
+    ])
+
+    # weak augmentation for teacher (stable pseudo labels)
+    weak_tfm = transforms.Compose([
+        transforms.Resize((img_size, img_size)),
+        transforms.RandomHorizontalFlip(p=float(cfg["augment"]["horizontal_flip_p"])),
         transforms.ToTensor(),
         transforms.Normalize(mean, std),
     ])
@@ -393,12 +533,13 @@ def main(config_path: str):
         extensions=("jpg", "jpeg", "png"),
         transform=test_tfm,
     )
-    unlabeled_set = DatasetFolder(
-        cfg["data"]["train_unlabeled"],
-        loader=rgb_loader,
-        extensions=("jpg", "jpeg", "png"),
-        transform=train_tfm,
-    )
+    unlabeled_set = None
+    if do_semi:
+        unlabeled_set = UnlabeledPairDataset(
+            cfg["data"]["train_unlabeled"],
+            weak_tfm=weak_tfm,
+            strong_tfm=unlabeled_strong_tfm,
+        )
     test_set = DatasetFolder(
         cfg["data"]["test"],
         loader=rgb_loader,
@@ -428,6 +569,18 @@ def main(config_path: str):
         pin_memory=pin_memory,
         **loader_kwargs,
     )
+    unlabeled_loader = None
+    if do_semi:
+        unsup_bs = int(cfg.get("semi", {}).get("unsup_batch_size", batch_size))
+        unlabeled_loader = DataLoader(
+            unlabeled_set,
+            batch_size=unsup_bs,
+            shuffle=True,
+            num_workers=num_workers,
+            pin_memory=pin_memory,
+            drop_last=True,
+            **loader_kwargs,
+        )
     test_loader = DataLoader(
         test_set,
         batch_size=batch_size,
@@ -438,7 +591,10 @@ def main(config_path: str):
     )
 
     logger.info(f"train labeled: {len(train_set)}")
-    logger.info(f"train unlabeled: {len(unlabeled_set)}")
+    if do_semi:
+        logger.info(f"train unlabeled: {len(unlabeled_set)}")
+    else:
+        logger.info("train unlabeled: disabled (semi.enabled=false)")
     logger.info(f"valid: {len(valid_set)}")
     logger.info(f"test: {len(test_set)}")
 
@@ -446,7 +602,11 @@ def main(config_path: str):
     # Model
     # ===========
 
-    model = SmallResNet(num_classes=11).to(device)
+    model = resnet18(num_classes=11).to(device)
+
+    ema_decay = float(cfg.get("semi", {}).get("ema", {}).get("decay", 0.999))
+    ema = EMA(model, decay=ema_decay).to(device)
+
     logger.info(f"#params: {sum(p.numel() for p in model.parameters()) / 1e6:.3f} M")
 
     # ===========
@@ -458,74 +618,85 @@ def main(config_path: str):
     weight_decay = float(cfg["train"]["weight_decay"])
     label_smoothing = float(cfg["train"]["label_smoothing"])
 
+    mixup_enabled = bool(cfg.get("train", {}).get("mixup", {}).get("enabled", False))
+    mixup_alpha = float(cfg.get("train", {}).get("mixup", {}).get("alpha", 0.2))
+
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs)
 
-    do_semi = bool(cfg["semi"]["enabled"])
     warmup_epochs = int(cfg["semi"]["warmup_epochs"])
     pseudo_threshold = float(cfg["semi"]["pseudo_threshold"])
-    pseudo_batch_size = int(cfg["semi"]["pseudo_batch_size"])
-    pseudo_every = int(cfg["semi"]["pseudo_every"])
+    lambda_u = float(cfg.get("semi", {}).get("lambda_u", 1.0))
+    lambda_u_ramp_epochs = int(cfg.get("semi", {}).get("lambda_u_ramp_epochs", 30))
 
     best_acc = 0.0
     best_path = _append_date_suffix(str(cfg["output"]["best_path"]), date)
 
-    # do semi-supervised learning
+    # do semi-supervised learning (FixMatch-style, no ConcatDataset)
     for epoch in range(1, n_epochs + 1):
-        if do_semi and epoch > warmup_epochs and (epoch % pseudo_every == 0):
-            pseudo_ds, keep_ratio, keep_n = get_pseudo_labels(
-                unlabeled_set,
-                model,
-                device,
-                img_size,
-                mean,
-                std,
-                train_tfm,
-                num_workers,
-                pin_memory,
-                threshold=pseudo_threshold,
-                batch_size=pseudo_batch_size,
-            )
-            logger.info(f"[Semi] epoch {epoch}: keep_ratio={keep_ratio:.3f}, kept={keep_n}")
-            # rebuild train loader
-            concat_ds = ConcatDataset([train_set, pseudo_ds])
-            train_loader_epoch = DataLoader(
-                concat_ds,
-                batch_size=batch_size,
-                shuffle=True,
-                num_workers=num_workers,
-                pin_memory=pin_memory,
-                **loader_kwargs,
-            )
-        else:
-            train_loader_epoch = train_loader
+        # warmup: you can disable unsup loss before warmup_epochs
+        use_unsup = do_semi and (epoch > warmup_epochs)
 
-        tr_loss, tr_acc = train_one_epoch(model, train_loader_epoch, optimizer, criterion, device)
-        va_loss, va_acc = valid_one_epoch(model, valid_loader, criterion, device)
+        if use_unsup:
+            if lambda_u_ramp_epochs > 0:
+                ramp = min(1.0, float(epoch - warmup_epochs) / float(lambda_u_ramp_epochs))
+                lambda_u_eff = float(lambda_u) * ramp
+            else:
+                lambda_u_eff = float(lambda_u)
+        else:
+            lambda_u_eff = 0.0
+
+        tr_loss, tr_acc, tr_mask = train_one_epoch(
+            model=model,
+            ema=ema,
+            labeled_loader=train_loader,
+            unlabeled_loader=unlabeled_loader,
+            optimizer=optimizer,
+            criterion=criterion,
+            device=device,
+            pseudo_threshold=pseudo_threshold if use_unsup else 1.1,  # effectively keep none in warmup
+            lambda_u=lambda_u_eff,
+            mixup_enabled=mixup_enabled,
+            mixup_alpha=mixup_alpha,
+        )
+
+        # Validate with EMA teacher (your final inference target)
+        va_loss, va_acc = valid_one_epoch(ema.ema, valid_loader, criterion, device)
+
         scheduler.step()
 
         logger.info(
-            f"Epoch {epoch:02d}/{n_epochs} | train loss {tr_loss:.4f} acc {tr_acc:.4f} | valid loss {va_loss:.4f} acc {va_acc:.4f} | lr {scheduler.get_last_lr()[0]:.2e}"
+            f"Epoch {epoch:02d}/{n_epochs} | train loss {tr_loss:.4f} acc {tr_acc:.4f} mask {tr_mask:.3f} u {lambda_u_eff:.3f} | "
+            f"valid loss {va_loss:.4f} acc {va_acc:.4f} | lr {scheduler.get_last_lr()[0]:.2e}"
         )
 
         if va_acc > best_acc:
             best_acc = va_acc
-            torch.save(model.state_dict(), best_path)
-            logger.info(f"  -> saved best: {best_acc:.4f} ({best_path})")
+            torch.save(
+                {"student": model.state_dict(), "ema": ema.ema.state_dict(), "best_acc": best_acc},
+                best_path
+            )
+            logger.info(f"  -> saved best (EMA): {best_acc:.4f} ({best_path})")
 
     # ===========
     # Testing
     # ===========
 
-    # Load best checkpoint
-    model.load_state_dict(torch.load(best_path, map_location=device))
+    # Load best checkpoint (EMA teacher)
+    ckpt = torch.load(best_path, map_location=device)
+    if isinstance(ckpt, dict) and "ema" in ckpt:
+        model.load_state_dict(ckpt["ema"])
+    else:
+        # fallback (older checkpoints)
+        model.load_state_dict(ckpt)
+
     model.eval()
 
     predictions = []
     with torch.no_grad():
         for imgs, _ in tqdm(test_loader, desc="Test"):
-            logits = model(imgs.to(device))
+            logits = model(imgs.to(device, non_blocking=True))
             pred = logits.argmax(dim=-1).cpu().numpy().tolist()
             predictions.extend(pred)
 

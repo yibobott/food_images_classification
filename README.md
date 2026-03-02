@@ -43,40 +43,61 @@ At startup the script prints:
 - The run timestamp `date`
 - The merged runtime config (pretty-printed JSON)
 
-## Model
+## Configuration Overview
 
-This project uses a custom `SmallResNet` implemented from scratch (no pretrained weights).
-It starts with a 3x3 convolution stem, followed by 4 residual stages built with `BasicBlock`.
-For `128x128` input images, the feature map size goes from `128x128` to `64x64`, `32x32`, and `16x16`
-through strided residual blocks, then an adaptive average pooling layer reduces it to `1x1` before
-the final fully connected classifier outputs 11 classes.
+The training behavior is fully controlled by `config.json`.
+Below is a description of the main configuration fields.
 
-## Configuration (`config.json`)
+Training Settings:
 
-Key fields:
+| Key                     | Description                                  |
+| ----------------------- | -------------------------------------------- |
+| `train.n_epochs`        | Total number of training epochs              |
+| `train.lr`              | Initial learning rate                        |
+| `train.weight_decay`    | Weight decay coefficient for AdamW optimizer |
+| `train.label_smoothing` | Label smoothing factor in `CrossEntropyLoss` |
+| `train.mixup.enabled`   | Enable MixUp for labeled batches             |
+| `train.mixup.alpha`     | Beta distribution parameter for MixUp        |
 
-- `seed`: random seed
-- `data.*`: dataset paths
-- `dataloader.*`: DataLoader settings
-  - `batch_size`
-  - `num_workers`
-  - `pin_memory`
-- `image.*`:
-  - `img_size`
-  - `mean`, `std`
-- `augment.*`: training data augmentation parameters
-- `train.*`: training hyperparameters
-- `semi.*`: semi-supervised settings
-  - `enabled`
-  - `warmup_epochs`
-  - `pseudo_threshold`
-  - `pseudo_batch_size`
-  - `pseudo_every` (generate pseudo labels every N epochs after warmup)
-- `output.*`:
-  - `best_path`
-  - `predict_path`
+Semi-Supervised Settings (FixMatch-style):
 
-You can edit `config.json` to tune hyperparameters without changing code.
+| Key                          | Description                                             |
+| ---------------------------- | ------------------------------------------------------- |
+| `semi.enabled`               | Enable semi-supervised learning                         |
+| `semi.warmup_epochs`         | Number of epochs trained with labeled data only         |
+| `semi.pseudo_threshold`      | Confidence threshold for pseudo-label filtering         |
+| `semi.lambda_u`              | Weight for unsupervised loss                            |
+| `semi.lambda_u_ramp_epochs`  | Epochs to gradually ramp up `lambda_u`                  |
+| `semi.unsup_batch_size`      | Batch size for unlabeled data                           |
+| `semi.ema.decay`             | Exponential Moving Average decay rate for teacher model |
+| `semi.randaugment_num_ops`   | Number of operations used in RandAugment                |
+| `semi.randaugment_magnitude` | Magnitude of RandAugment transformations                |
+
+Data & Dataloader Settings:
+
+| Key                      | Description                                  |
+| ------------------------ | -------------------------------------------- |
+| `data.train_labeled`     | Path to labeled training dataset             |
+| `data.train_unlabeled`   | Path to unlabeled training dataset           |
+| `data.valid`             | Path to validation dataset                   |
+| `data.test`              | Path to test dataset                         |
+| `dataloader.batch_size`  | Batch size for labeled data                  |
+| `dataloader.num_workers` | Number of worker processes for data loading  |
+| `dataloader.pin_memory`  | Enable pinned memory for faster GPU transfer |
+
+
+Image & Augmentation Settings:
+
+| Key                                 | Description                                              |
+| ----------------------------------- | -------------------------------------------------------- |
+| `image.img_size`                    | Input image size                                         |
+| `image.mean`                        | Normalization mean                                       |
+| `image.std`                         | Normalization standard deviation                         |
+| `augment.random_resized_crop_scale` | Scale range for `RandomResizedCrop`                      |
+| `augment.random_resized_crop_ratio` | Aspect ratio range for `RandomResizedCrop`               |
+| `augment.horizontal_flip_p`         | Probability of horizontal flip                           |
+| `augment.rotation_deg`              | Maximum rotation angle                                   |
+| `augment.color_jitter.*`            | Parameters for brightness, contrast, saturation, and hue |
 
 ## Outputs
 
@@ -97,46 +118,48 @@ best-model-20260301-001530.pt
 predict-20260301-001530.csv
 ```
 
-## Differences from Baseline Code
+## Key Differences from Baseline
 
-Compared with the provided baseline implementation, our improved version introduces several enhancements in model design, training strategy, and engineering structure:
+### 1. Stronger Model Backbone (CIFAR-style ResNet-18, from scratch)
+- Replaces the baseline CNN with a **custom ResNet-18 (BasicBlock)** implementation.
+- Uses a **CIFAR-style stem**:
+  - `3x3 conv, stride=1`
+  - **no maxpool**
+- No pre-trained weights are used.
 
-### 1. Improved Model Architecture
+### 2. Semi-Supervised Learning (FixMatch-style)
+- Uses both labeled and unlabeled images during training.
+- For each unlabeled image, the dataset returns:
+  - **weakly-augmented** view (for teacher prediction)
+  - **strongly-augmented** view (for student training)
+- The teacher produces pseudo labels on weak views; the student is trained to match them on strong views.
+- A confidence threshold (`pseudo_threshold`) filters pseudo labels.
 
-- The baseline model uses a relatively simple CNN structure.
-- Our implementation adopts a custom **SmallResNet** with residual connections.
-- Multiple residual stages improve feature extraction capability and training stability.
-- Adaptive average pooling is used before the final classifier to handle spatial features more effectively.
+### 3. EMA Teacher (Exponential Moving Average)
+- Maintains a teacher model as an EMA of the student parameters:
+  - `teacher = decay * teacher + (1 - decay) * student`
+- Validation is performed using the **EMA teacher**, which is often more stable than the raw student.
 
-### 2. Configurable Training Pipeline
+### 4. Additional Data Augmentation Techniques
+- **Labeled training augmentation** includes:
+  - RandomResizedCrop
+  - HorizontalFlip
+  - Rotation
+  - ColorJitter
+- **Unlabeled strong augmentation** uses:
+  - RandomResizedCrop + HorizontalFlip
+  - **RandAugment** (if supported by current torchvision)
+- **Unlabeled weak augmentation** is kept mild to stabilize pseudo labels.
 
-- The improved version supports a JSON-based configuration system (`config.json`).
-- Key hyperparameters (learning rate, batch size, augmentation settings, semi-supervised options, etc.) can be modified without changing the source code.
-- This makes experiments more flexible and reproducible.
+### 5. MixUp on Labeled Data Only
+- MixUp is optionally enabled **only on labeled batches** (does not modify unlabeled branch).
+- This reduces extra variables in semi-supervised training while improving robustness on labeled supervision.
 
-### 3. Semi-Supervised Learning (Pseudo-Labeling)
-
-- The baseline only uses labeled data.
-- Our version optionally incorporates unlabeled data through pseudo-labeling:
-  - Warm-up epochs before pseudo-label generation
-  - Confidence threshold filtering
-  - Periodic pseudo-label updates
-- This allows better utilization of the unlabeled dataset and improves generalization performance.
-
-### 4. Enhanced Data Augmentation
-
-- Additional data augmentation techniques are applied during training, such as:
-  - Random horizontal flipping
-  - Random cropping and resizing
-  - Color jitter (brightness / contrast / saturation adjustments)
-  - Random rotation (if enabled in config)
-- Augmentation parameters are configurable via `config.json`.
-- These techniques increase data diversity, reduce overfitting, and improve model generalization performance.
-
-### 5. Logging and Checkpoint Management
-
-- Each run automatically:
-  - Prints and logs the merged runtime configuration
-  - Saves timestamped checkpoints
-  - Saves prediction results with unique filenames
-- This improves experiment tracking and reproducibility.
+### 6. Improved Training Engineering
+- JSON-based configuration system (`config.json`) for reproducible experiments.
+- Cosine learning rate schedule with AdamW optimizer.
+- Automatic best checkpoint saving (EMA weights) based on validation accuracy.
+- Detailed logging:
+  - console output
+  - saved log file `log-<date>.txt`
+- Prediction output is saved with a date suffix to avoid overwriting.
