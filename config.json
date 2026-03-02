@@ -34,7 +34,7 @@
     "weight_decay": 0.0002,
     "label_smoothing": 0.1,
     "mixup": {
-      "enabled": false,
+      "enabled": true,
       "alpha": 0.2
     }
   },
