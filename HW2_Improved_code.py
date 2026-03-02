@@ -462,6 +462,25 @@ def main(config_path: str):
         transforms.Normalize(mean, std),
     ])
 
+    if hasattr(transforms, "RandAugment"):
+        unlabeled_strong_tfm = transforms.Compose([
+            transforms.RandomResizedCrop(img_size, scale=rrc_scale, ratio=rrc_ratio),
+            transforms.RandomHorizontalFlip(p=float(cfg["augment"]["horizontal_flip_p"])),
+            transforms.RandomRotation(float(cfg["augment"]["rotation_deg"])),
+            transforms.ColorJitter(
+                brightness=float(cj["brightness"]),
+                contrast=float(cj["contrast"]),
+                saturation=float(cj["saturation"]),
+                hue=float(cj["hue"]),
+            ),
+            transforms.RandAugment(num_ops=2, magnitude=9),
+            transforms.ToTensor(),
+            transforms.Normalize(mean, std),
+        ])
+    else:
+        logger.warning("There is no RandAugment in the current torchvision version.")
+        unlabeled_strong_tfm = train_tfm
+
     test_tfm = transforms.Compose([
         transforms.Resize((img_size, img_size)),
         transforms.ToTensor(),
@@ -494,7 +513,7 @@ def main(config_path: str):
         unlabeled_set = UnlabeledPairDataset(
             cfg["data"]["train_unlabeled"],
             weak_tfm=weak_tfm,
-            strong_tfm=train_tfm, # strong aug for student
+            strong_tfm=unlabeled_strong_tfm,
         )
     test_set = DatasetFolder(
         cfg["data"]["test"],
