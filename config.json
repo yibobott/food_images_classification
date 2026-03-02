@@ -32,14 +32,14 @@
     "n_epochs": 220,
     "lr": 0.0007,
     "weight_decay": 0.0002,
-    "label_smoothing": 0.05
+    "label_smoothing": 0.1
   },
   "semi": {
     "enabled": true,
-    "warmup_epochs": 16,
-    "pseudo_threshold": 0.93,
+    "warmup_epochs": 8,
+    "pseudo_threshold": 0.90,
     "unsup_batch_size": 128,
-    "lambda_u": 0.8,
+    "lambda_u": 0.6,
     "ema": {
       "decay": 0.999
     }
