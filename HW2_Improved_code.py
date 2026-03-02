@@ -67,6 +67,10 @@ DEFAULT_CONFIG = {
         "lr": 3e-4,
         "weight_decay": 1e-4,
         "label_smoothing": 0.1,
+        "mixup": {
+            "enabled": False,
+            "alpha": 0.2
+        }
     },
     "semi": {
         "enabled": True,
@@ -338,6 +342,8 @@ def train_one_epoch(
     device,
     pseudo_threshold: float = 0.95,
     lambda_u: float = 1.0,
+    mixup_enabled: bool = False,
+    mixup_alpha: float = 0.2,
 ):
     model.train()
     ema.ema.eval()
@@ -355,8 +361,22 @@ def train_one_epoch(
         labels_x = labels_x.to(device, non_blocking=True)
 
         # supervised
-        logits_x = model(imgs_x)
-        loss_x = criterion(logits_x, labels_x)
+        do_mixup = bool(mixup_enabled) and float(mixup_alpha) > 0.0 and imgs_x.size(0) > 1
+        if do_mixup:
+            lam = float(np.random.beta(float(mixup_alpha), float(mixup_alpha)))
+            lam = max(lam, 1.0 - lam)
+            perm = torch.randperm(imgs_x.size(0), device=imgs_x.device)
+            imgs_mix = lam * imgs_x + (1.0 - lam) * imgs_x[perm]
+            labels_a = labels_x
+            labels_b = labels_x[perm]
+            logits_x = model(imgs_mix)
+            loss_x = lam * criterion(logits_x, labels_a) + (1.0 - lam) * criterion(logits_x, labels_b)
+            with torch.no_grad():
+                logits_acc = model(imgs_x)
+        else:
+            logits_x = model(imgs_x)
+            loss_x = criterion(logits_x, labels_x)
+            logits_acc = logits_x
 
         if unl_it is not None:
             try:
@@ -394,7 +414,7 @@ def train_one_epoch(
         # EMA update AFTER student step
         ema.update(model)
 
-        acc = (logits_x.argmax(dim=-1) == labels_x).float().mean().item()
+        acc = (logits_acc.argmax(dim=-1) == labels_x).float().mean().item()
         losses.append(loss.item())
         accs.append(acc)
 
@@ -598,6 +618,9 @@ def main(config_path: str):
     weight_decay = float(cfg["train"]["weight_decay"])
     label_smoothing = float(cfg["train"]["label_smoothing"])
 
+    mixup_enabled = bool(cfg.get("train", {}).get("mixup", {}).get("enabled", False))
+    mixup_alpha = float(cfg.get("train", {}).get("mixup", {}).get("alpha", 0.2))
+
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
     scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs)
@@ -634,6 +657,8 @@ def main(config_path: str):
             device=device,
             pseudo_threshold=pseudo_threshold if use_unsup else 1.1,  # effectively keep none in warmup
             lambda_u=lambda_u_eff,
+            mixup_enabled=mixup_enabled,
+            mixup_alpha=mixup_alpha,
         )
 
         # Validate with EMA teacher (your final inference target)

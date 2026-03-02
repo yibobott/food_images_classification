@@ -32,7 +32,11 @@
     "n_epochs": 220,
     "lr": 0.0007,
     "weight_decay": 0.0002,
-    "label_smoothing": 0.1
+    "label_smoothing": 0.1,
+    "mixup": {
+      "enabled": false,
+      "alpha": 0.2
+    }
   },
   "semi": {
     "enabled": true,
