@@ -39,7 +39,7 @@
     "warmup_epochs": 8,
     "pseudo_threshold": 0.92,
     "unsup_batch_size": 128,
-    "lambda_u": 0.6,
+    "lambda_u": 0.4,
     "lambda_u_ramp_epochs": 30,
     "randaugment_num_ops": 2,
     "randaugment_magnitude": 9,

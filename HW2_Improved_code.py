@@ -471,13 +471,13 @@ def main(config_path: str):
         unlabeled_strong_tfm = transforms.Compose([
             transforms.RandomResizedCrop(img_size, scale=rrc_scale, ratio=rrc_ratio),
             transforms.RandomHorizontalFlip(p=float(cfg["augment"]["horizontal_flip_p"])),
-            transforms.RandomRotation(float(cfg["augment"]["rotation_deg"])),
-            transforms.ColorJitter(
-                brightness=float(cj["brightness"]),
-                contrast=float(cj["contrast"]),
-                saturation=float(cj["saturation"]),
-                hue=float(cj["hue"]),
-            ),
+            # transforms.RandomRotation(float(cfg["augment"]["rotation_deg"])),
+            # transforms.ColorJitter(
+            #     brightness=float(cj["brightness"]),
+            #     contrast=float(cj["contrast"]),
+            #     saturation=float(cj["saturation"]),
+            #     hue=float(cj["hue"]),
+            # ),
             transforms.RandAugment(num_ops=ra_num_ops, magnitude=ra_magnitude),
             transforms.ToTensor(),
             transforms.Normalize(mean, std),
