@@ -184,15 +184,36 @@ def conv3x3(in_planes, out_planes, stride=1):
 def conv1x1(in_planes, out_planes, stride=1):
     return nn.Conv2d(in_planes, out_planes, kernel_size=1, stride=stride, bias=False)
 
+class SEBlock(nn.Module):
+    # Squeeze-and-Excitation block
+    def __init__(self, channels, reduction=16):
+        super().__init__()
+        mid = max(channels // reduction, 4)
+        self.pool = nn.AdaptiveAvgPool2d(1)
+        self.fc = nn.Sequential(
+            nn.Linear(channels, mid, bias=False),
+            nn.ReLU(inplace=True),
+            nn.Linear(mid, channels, bias=False),
+            nn.Sigmoid(),
+        )
+
+    def forward(self, x):
+        b, c, _, _ = x.shape
+        w = self.pool(x).view(b, c)
+        w = self.fc(w).view(b, c, 1, 1)
+        return x * w
+
+
 class ResNetBasicBlock(nn.Module):
     expansion = 1
 
-    def __init__(self, in_planes, planes, stride=1):
+    def __init__(self, in_planes, planes, stride=1, se_reduction=16):
         super().__init__()
         self.conv1 = conv3x3(in_planes, planes, stride=stride)
         self.bn1 = nn.BatchNorm2d(planes)
         self.conv2 = conv3x3(planes, planes, stride=1)
         self.bn2 = nn.BatchNorm2d(planes)
+        self.se = SEBlock(planes * self.expansion, reduction=se_reduction)
 
         self.downsample = None
         if stride != 1 or in_planes != planes * self.expansion:
@@ -210,6 +231,7 @@ class ResNetBasicBlock(nn.Module):
 
         out = self.conv2(out)
         out = self.bn2(out)
+        out = self.se(out)
 
         if self.downsample is not None:
             identity = self.downsample(x)
