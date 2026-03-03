@@ -746,6 +746,7 @@ def main(config_path: str):
 
     best_acc = 0.0
     best_path = _append_date_suffix(str(cfg["output"]["best_path"]), date)
+    best_metrics = {}  # track best epoch metrics for summary
 
     # SWA setup
     swa_cfg = cfg.get("swa", {})
@@ -799,6 +800,16 @@ def main(config_path: str):
 
         if va_acc > best_acc:
             best_acc = va_acc
+            best_metrics = {
+                "epoch": epoch,
+                "train_loss": tr_loss,
+                "train_acc": tr_acc,
+                "valid_loss": va_loss,
+                "valid_acc": va_acc,
+                "mask": tr_mask,
+                "lambda_u": lambda_u_eff,
+                "lr": scheduler.get_last_lr()[0],
+            }
             torch.save(
                 {"student": model.state_dict(), "ema": ema.ema.state_dict(), "best_acc": best_acc},
                 best_path
@@ -878,7 +889,7 @@ def main(config_path: str):
         for i, pred in enumerate(predictions):
             f.write(f"{i},{pred}\n")
 
-    logger.info(f"Saved: {out_path}")
+    logger.info(f"Saved predictions: {out_path}")
 
     # SWA predictions (separate CSV)
     if swa_enabled and swa_model is not None:
@@ -910,6 +921,50 @@ def main(config_path: str):
             for i, pred in enumerate(swa_predictions):
                 f.write(f"{i},{pred}\n")
         logger.info(f"Saved SWA predictions: {swa_out_path}")
+
+    # ===========
+    # Final Summary
+    # ===========
+    sep = "=" * 60
+    logger.info("")
+    logger.info(sep)
+    logger.info("  TRAINING SUMMARY")
+    logger.info(sep)
+
+    # Best model summary
+    logger.info("")
+    logger.info("  [Best EMA Model]")
+    if best_metrics:
+        bm = best_metrics
+        logger.info(f"    Epoch:       {bm['epoch']}/{n_epochs}")
+        logger.info(f"    Train Loss:  {bm['train_loss']:.4f}")
+        logger.info(f"    Train Acc:   {bm['train_acc']:.4f}")
+        logger.info(f"    Valid Loss:  {bm['valid_loss']:.4f}")
+        logger.info(f"    Valid Acc:   {bm['valid_acc']:.4f}")
+        tta_va_str = f"{tta_va_acc:.4f}" if tta_enabled and tta_num > 0 else "N/A"
+        logger.info(f"    Valid (TTA): {tta_va_str}")
+        logger.info(f"    Mask:        {bm['mask']:.3f}")
+        logger.info(f"    Lambda_u:    {bm['lambda_u']:.3f}")
+        logger.info(f"    LR:          {bm['lr']:.2e}")
+    logger.info(f"    Checkpoint:  {best_path}")
+    logger.info(f"    Predictions: {out_path}")
+
+    # SWA model summary
+    if swa_enabled and swa_model is not None:
+        logger.info("")
+        logger.info("  [SWA Model]")
+        logger.info(f"    Avg Range:   epoch {swa_start_epoch}~{n_epochs} ({n_epochs - swa_start_epoch} epochs)")
+        logger.info(f"    Valid Loss:  {swa_va_loss:.4f}")
+        logger.info(f"    Valid Acc:   {swa_va_acc:.4f}")
+        swa_tta_str = f"{swa_tta_va_acc:.4f}" if tta_enabled and tta_num > 0 else "N/A"
+        logger.info(f"    Valid (TTA): {swa_tta_str}")
+        logger.info(f"    Checkpoint:  {swa_path}")
+        logger.info(f"    Predictions: {swa_out_path}")
+
+    logger.info("")
+    logger.info(sep)
+    logger.info("  Done.")
+    logger.info(sep)
 
 
 if __name__ == "__main__":
