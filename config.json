@@ -50,6 +50,11 @@
     "enabled": true,
     "num_augments": 10
   },
+  "swa": {
+    "enabled": true,
+    "start_epoch_ratio": 0.9,
+    "lr": 1e-5
+  },
   "semi": {
     "enabled": true,
     "warmup_epochs": 8,

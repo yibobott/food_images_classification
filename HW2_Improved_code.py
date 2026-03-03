@@ -30,6 +30,7 @@ import logging
 import sys
 from datetime import datetime
 import copy
+from torch.optim.swa_utils import AveragedModel, update_bn
 
 
 DEFAULT_CONFIG = {
@@ -82,6 +83,11 @@ DEFAULT_CONFIG = {
     "tta": {
         "enabled": False,
         "num_augments": 5,
+    },
+    "swa": {
+        "enabled": False,
+        "start_epoch_ratio": 0.9,
+        "lr": 1e-5,
     },
     "semi": {
         "enabled": True,
@@ -719,6 +725,16 @@ def main(config_path: str):
     best_acc = 0.0
     best_path = _append_date_suffix(str(cfg["output"]["best_path"]), date)
 
+    # SWA setup
+    swa_cfg = cfg.get("swa", {})
+    swa_enabled = bool(swa_cfg.get("enabled", False))
+    swa_start_epoch = int(n_epochs * float(swa_cfg.get("start_epoch_ratio", 0.9)))
+    swa_lr = float(swa_cfg.get("lr", 1e-5))
+    swa_model = None
+    if swa_enabled:
+        swa_model = AveragedModel(ema.ema).to(device)
+        logger.info(f"SWA enabled: start averaging from epoch {swa_start_epoch}, swa_lr={swa_lr:.1e}")
+
     # do semi-supervised learning (FixMatch-style, no ConcatDataset)
     for epoch in range(1, n_epochs + 1):
         # warmup: you can disable unsup loss before warmup_epochs
@@ -767,6 +783,33 @@ def main(config_path: str):
             )
             logger.info(f"  -> saved best (EMA): {best_acc:.4f} ({best_path})")
 
+        # SWA: accumulate EMA weights in the last phase
+        if swa_enabled and epoch >= swa_start_epoch:
+            swa_model.update_parameters(ema.ema)
+
+    # ===========
+    # SWA finalize
+    # ===========
+    if swa_enabled and swa_model is not None:
+        logger.info("SWA: updating batch normalization statistics...")
+        # Build a simple loader for BN update (labeled data, no augmentation)
+        bn_loader = DataLoader(
+            DatasetFolder(cfg["data"]["train_labeled"], loader=rgb_loader,
+                          extensions=("jpg", "jpeg", "png"), transform=test_tfm),
+            batch_size=batch_size, shuffle=True, num_workers=num_workers, pin_memory=pin_memory,
+        )
+        update_bn(bn_loader, swa_model, device=device)
+        swa_model.eval()
+
+        # Validate SWA model
+        swa_va_loss, swa_va_acc = valid_one_epoch(swa_model, valid_loader, criterion, device)
+        logger.info(f"SWA valid acc: {swa_va_acc:.4f} (EMA best: {best_acc:.4f})")
+
+        # Save SWA model
+        swa_path = _append_date_suffix("swa-model.pt", date)
+        torch.save({"swa": swa_model.module.state_dict(), "swa_acc": swa_va_acc}, swa_path)
+        logger.info(f"  -> saved SWA model: {swa_path}")
+
     # ===========
     # Testing
     # ===========
@@ -814,6 +857,37 @@ def main(config_path: str):
             f.write(f"{i},{pred}\n")
 
     logger.info(f"Saved: {out_path}")
+
+    # SWA predictions (separate CSV)
+    if swa_enabled and swa_model is not None:
+        logger.info("Generating SWA predictions...")
+        if tta_enabled and tta_num > 0:
+            # Need to temporarily swap model for TTA
+            swa_inner = swa_model.module
+            swa_inner.eval()
+            # TTA validation with SWA
+            swa_tta_logits = tta_forward(swa_inner, valid_set, tta_tfm, device, tta_num, batch_size)
+            swa_tta_va_acc = (swa_tta_logits.argmax(dim=-1) == va_labels).float().mean().item()
+            logger.info(f"SWA Valid acc (TTA): {swa_tta_va_acc:.4f}")
+            # TTA test with SWA
+            swa_tta_logits = tta_forward(swa_inner, test_set, tta_tfm, device, tta_num, batch_size)
+            swa_predictions = swa_tta_logits.argmax(dim=-1).numpy().tolist()
+        else:
+            swa_predictions = []
+            swa_inner = swa_model.module
+            swa_inner.eval()
+            with torch.no_grad():
+                for imgs, _ in tqdm(test_loader, desc="SWA Test"):
+                    logits = swa_inner(imgs.to(device, non_blocking=True))
+                    pred = logits.argmax(dim=-1).cpu().numpy().tolist()
+                    swa_predictions.extend(pred)
+
+        swa_out_path = _append_date_suffix("swa-predict.csv", date)
+        with open(swa_out_path, "w") as f:
+            f.write("Id,Category\n")
+            for i, pred in enumerate(swa_predictions):
+                f.write(f"{i},{pred}\n")
+        logger.info(f"Saved SWA predictions: {swa_out_path}")
 
 
 if __name__ == "__main__":
