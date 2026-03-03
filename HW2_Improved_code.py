@@ -61,6 +61,10 @@ DEFAULT_CONFIG = {
             "saturation": 0.2,
             "hue": 0.05,
         },
+        "random_erasing": {
+            "p": 0.25,
+            "scale": [0.02, 0.2],
+        },
     },
     "train": {
         "n_epochs": 25,
@@ -68,6 +72,7 @@ DEFAULT_CONFIG = {
         "weight_decay": 1e-4,
         "label_smoothing": 0.1,
         "accum_steps": 1,
+        "dropout": 0.5,
         "mix": {
             "enabled": False,
             "alpha": 0.2,
@@ -221,7 +226,7 @@ class ResNet(nn.Module):
       - layer4 stride2 -> 16x16
       - avgpool -> 1x1
     """
-    def __init__(self, block, layers, num_classes=11, base_width=64):
+    def __init__(self, block, layers, num_classes=11, base_width=64, dropout=0.5):
         super().__init__()
         self.inplanes = base_width
 
@@ -237,6 +242,7 @@ class ResNet(nn.Module):
         self.layer4 = self._make_layer(block, base_width * 8, layers[3], stride=2)
 
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
+        self.drop = nn.Dropout(p=dropout)
         self.fc = nn.Linear(base_width * 8 * block.expansion, num_classes)
 
         # Kaiming init
@@ -269,12 +275,13 @@ class ResNet(nn.Module):
 
         # head
         x = self.avgpool(x).flatten(1)
+        x = self.drop(x)
         x = self.fc(x)
         return x
 
 
-def resnet18(num_classes=11):
-    return ResNet(ResNetBasicBlock, [2, 2, 2, 2], num_classes=num_classes, base_width=64)
+def resnet18(num_classes=11, dropout=0.5):
+    return ResNet(ResNetBasicBlock, [2, 2, 2, 2], num_classes=num_classes, base_width=64, dropout=dropout)
 
 
 
@@ -535,6 +542,10 @@ def main(config_path: str):
     ra_num_ops = int(cfg.get("semi", {}).get("randaugment_num_ops", 2))
     ra_magnitude = int(cfg.get("semi", {}).get("randaugment_magnitude", 9))
 
+    re_cfg = cfg.get("augment", {}).get("random_erasing", {})
+    re_p = float(re_cfg.get("p", 0.25))
+    re_scale = tuple(float(x) for x in re_cfg.get("scale", [0.02, 0.2]))
+
     # data augmentation in training
     train_tfm = transforms.Compose([
         transforms.RandomResizedCrop(img_size, scale=rrc_scale, ratio=rrc_ratio),
@@ -548,6 +559,7 @@ def main(config_path: str):
         ),
         transforms.ToTensor(),
         transforms.Normalize(mean, std),
+        transforms.RandomErasing(p=re_p, scale=re_scale),
     ])
 
     if hasattr(transforms, "RandAugment"):
@@ -564,6 +576,7 @@ def main(config_path: str):
             transforms.RandAugment(num_ops=ra_num_ops, magnitude=ra_magnitude),
             transforms.ToTensor(),
             transforms.Normalize(mean, std),
+            transforms.RandomErasing(p=re_p, scale=re_scale),
         ])
     else:
         logger.warning("There is no RandAugment in the current torchvision version.")
@@ -672,7 +685,8 @@ def main(config_path: str):
     # Model
     # ===========
 
-    model = resnet18(num_classes=11).to(device)
+    dropout = float(cfg.get("train", {}).get("dropout", 0.5))
+    model = resnet18(num_classes=11, dropout=dropout).to(device)
 
     ema_decay = float(cfg.get("semi", {}).get("ema", {}).get("decay", 0.999))
     ema = EMA(model, decay=ema_decay).to(device)

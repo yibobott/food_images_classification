@@ -26,13 +26,18 @@
       "contrast": 0.25,
       "saturation": 0.25,
       "hue": 0.05
+    },
+    "random_erasing": {
+      "p": 0.25,
+      "scale": [0.02, 0.2]
     }
   },
   "train": {
     "n_epochs": 300,
     "lr": 0.0007,
-    "weight_decay": 0.0002,
-    "label_smoothing": 0.05,
+    "weight_decay": 0.0005,
+    "label_smoothing": 0.1,
+    "dropout": 0.5,
     "accum_steps": 2,
     "mix": {
       "enabled": true,
@@ -43,12 +48,12 @@
   },
   "tta": {
     "enabled": true,
-    "num_augments": 5
+    "num_augments": 10
   },
   "semi": {
     "enabled": true,
     "warmup_epochs": 8,
-    "pseudo_threshold": 0.92,
+    "pseudo_threshold": 0.85,
     "unsup_batch_size": 64,
     "lambda_u": 0.4,
     "lambda_u_ramp_epochs": 30,
