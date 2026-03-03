@@ -30,7 +30,7 @@ import logging
 import sys
 from datetime import datetime
 import copy
-from torch.optim.swa_utils import AveragedModel, update_bn
+from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
 
 
 DEFAULT_CONFIG = {
@@ -830,8 +830,10 @@ def main(config_path: str):
     swa_start_epoch = int(n_epochs * float(swa_cfg.get("start_epoch_ratio", 0.9)))
     swa_lr = float(swa_cfg.get("lr", 1e-5))
     swa_model = None
+    swa_scheduler = None
     if swa_enabled:
         swa_model = AveragedModel(ema.ema).to(device)
+        swa_scheduler = SWALR(optimizer, swa_lr=swa_lr)
         logger.info(f"SWA enabled: start averaging from epoch {swa_start_epoch}, swa_lr={swa_lr:.1e}")
 
     # do semi-supervised learning (FixMatch-style, no ConcatDataset)
@@ -867,7 +869,10 @@ def main(config_path: str):
         # Validate with EMA teacher (final inference target)
         va_loss, va_acc = valid_one_epoch(ema.ema, valid_loader, criterion, device)
 
-        scheduler.step()
+        if swa_enabled and epoch >= swa_start_epoch:
+            swa_scheduler.step()
+        else:
+            scheduler.step()
 
         logger.info(
             f"Epoch {epoch:02d}/{n_epochs} | train loss {tr_loss:.4f} acc {tr_acc:.4f} mask {tr_mask:.3f} u {lambda_u_eff:.3f} | "
