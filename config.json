@@ -7,12 +7,12 @@
     "test": "food11/testing"
   },
   "dataloader": {
-    "batch_size": 48,
+    "batch_size": 64,
     "num_workers": 8,
     "pin_memory": true
   },
   "image": {
-    "img_size": 160,
+    "img_size": 128,
     "mean": [0.485, 0.456, 0.406],
     "std": [0.229, 0.224, 0.225]
   },
@@ -44,7 +44,7 @@
     "enabled": true,
     "warmup_epochs": 8,
     "pseudo_threshold": 0.92,
-    "unsup_batch_size": 96,
+    "unsup_batch_size": 128,
     "lambda_u": 0.4,
     "lambda_u_ramp_epochs": 30,
     "randaugment_num_ops": 2,
