@@ -536,33 +536,11 @@ def tta_forward(model, dataset, tta_tfm, device, num_augments=5, batch_size=64):
     return summed / (1 + num_augments)
 
 
-def main(config_path: str):
-    date = datetime.now().strftime("%Y%m%d-%H%M%S")
-    logger = _build_logger(date)
 
-    # load config
-    cfg = load_config(config_path)
-    logger.info(f"date={date}")
-    logger.info("config=\n" + json.dumps(cfg, indent=2, sort_keys=True))
-
-    device = "cuda" if torch.cuda.is_available() else "cpu"
-    logger.info(f"Device: {device}")
-
-    set_seed(int(cfg["seed"]))
-
-    # ===========
-    # Dataset, Data Loader, and Transforms
-    # ===========
-
+def _build_transforms(cfg, logger):
     img_size = int(cfg["image"]["img_size"])
-    batch_size = int(cfg["dataloader"]["batch_size"])
-    num_workers = int(cfg["dataloader"]["num_workers"])
-    pin_memory = bool(cfg["dataloader"]["pin_memory"])
-    do_semi = bool(cfg["semi"]["enabled"])
-
     mean = tuple(float(x) for x in cfg["image"]["mean"])
     std = tuple(float(x) for x in cfg["image"]["std"])
-
     cj = cfg["augment"]["color_jitter"]
     rrc_scale = tuple(float(x) for x in cfg["augment"]["random_resized_crop_scale"])
     rrc_ratio = tuple(float(x) for x in cfg["augment"]["random_resized_crop_ratio"])
@@ -574,7 +552,6 @@ def main(config_path: str):
     re_p = float(re_cfg.get("p", 0.25))
     re_scale = tuple(float(x) for x in re_cfg.get("scale", [0.02, 0.2]))
 
-    # data augmentation in training
     train_tfm = transforms.Compose([
         transforms.RandomResizedCrop(img_size, scale=rrc_scale, ratio=rrc_ratio),
         transforms.RandomHorizontalFlip(p=float(cfg["augment"]["horizontal_flip_p"])),
@@ -623,7 +600,6 @@ def main(config_path: str):
         transforms.Normalize(mean, std),
     ])
 
-    # weak augmentation for teacher (stable pseudo labels)
     weak_tfm = transforms.Compose([
         transforms.Resize((img_size, img_size)),
         transforms.RandomHorizontalFlip(p=float(cfg["augment"]["horizontal_flip_p"])),
@@ -631,31 +607,35 @@ def main(config_path: str):
         transforms.Normalize(mean, std),
     ])
 
-    # Construct datasets
+    return {
+        "train": train_tfm, "unlabeled_strong": unlabeled_strong_tfm,
+        "test": test_tfm, "tta": tta_tfm, "weak": weak_tfm,
+    }
+
+
+def _build_datasets_and_loaders(cfg, tfms, logger):
+    batch_size = int(cfg["dataloader"]["batch_size"])
+    num_workers = int(cfg["dataloader"]["num_workers"])
+    pin_memory = bool(cfg["dataloader"]["pin_memory"])
+    do_semi = bool(cfg["semi"]["enabled"])
+
     train_set = DatasetFolder(
-        cfg["data"]["train_labeled"],
-        loader=rgb_loader,
-        extensions=("jpg", "jpeg", "png"),
-        transform=train_tfm,
+        cfg["data"]["train_labeled"], loader=rgb_loader,
+        extensions=("jpg", "jpeg", "png"), transform=tfms["train"],
     )
     valid_set = DatasetFolder(
-        cfg["data"]["valid"],
-        loader=rgb_loader,
-        extensions=("jpg", "jpeg", "png"),
-        transform=test_tfm,
+        cfg["data"]["valid"], loader=rgb_loader,
+        extensions=("jpg", "jpeg", "png"), transform=tfms["test"],
     )
     unlabeled_set = None
     if do_semi:
         unlabeled_set = UnlabeledPairDataset(
             cfg["data"]["train_unlabeled"],
-            weak_tfm=weak_tfm,
-            strong_tfm=unlabeled_strong_tfm,
+            weak_tfm=tfms["weak"], strong_tfm=tfms["unlabeled_strong"],
         )
     test_set = DatasetFolder(
-        cfg["data"]["test"],
-        loader=rgb_loader,
-        extensions=("jpg", "jpeg", "png"),
-        transform=test_tfm,
+        cfg["data"]["test"], loader=rgb_loader,
+        extensions=("jpg", "jpeg", "png"), transform=tfms["test"],
     )
 
     loader_kwargs = {}
@@ -663,42 +643,25 @@ def main(config_path: str):
         loader_kwargs["persistent_workers"] = True
         loader_kwargs["prefetch_factor"] = 2
 
-    # Construct data loaders
     train_loader = DataLoader(
-        train_set,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        **loader_kwargs,
+        train_set, batch_size=batch_size, shuffle=True,
+        num_workers=num_workers, pin_memory=pin_memory, **loader_kwargs,
     )
     valid_loader = DataLoader(
-        valid_set,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        **loader_kwargs,
+        valid_set, batch_size=batch_size, shuffle=False,
+        num_workers=num_workers, pin_memory=pin_memory, **loader_kwargs,
     )
     unlabeled_loader = None
     if do_semi:
         unsup_bs = int(cfg.get("semi", {}).get("unsup_batch_size", batch_size))
         unlabeled_loader = DataLoader(
-            unlabeled_set,
-            batch_size=unsup_bs,
-            shuffle=True,
-            num_workers=num_workers,
-            pin_memory=pin_memory,
-            drop_last=True,
-            **loader_kwargs,
+            unlabeled_set, batch_size=unsup_bs, shuffle=True,
+            num_workers=num_workers, pin_memory=pin_memory,
+            drop_last=True, **loader_kwargs,
         )
     test_loader = DataLoader(
-        test_set,
-        batch_size=batch_size,
-        shuffle=False,
-        num_workers=num_workers,
-        pin_memory=pin_memory,
-        **loader_kwargs,
+        test_set, batch_size=batch_size, shuffle=False,
+        num_workers=num_workers, pin_memory=pin_memory, **loader_kwargs,
     )
 
     logger.info(f"train labeled: {len(train_set)}")
@@ -708,6 +671,119 @@ def main(config_path: str):
         logger.info("train unlabeled: disabled (semi.enabled=false)")
     logger.info(f"valid: {len(valid_set)}")
     logger.info(f"test: {len(test_set)}")
+
+    return {
+        "train_set": train_set, "valid_set": valid_set,
+        "unlabeled_set": unlabeled_set, "test_set": test_set,
+        "train_loader": train_loader, "valid_loader": valid_loader,
+        "unlabeled_loader": unlabeled_loader, "test_loader": test_loader,
+        "batch_size": batch_size, "num_workers": num_workers,
+        "pin_memory": pin_memory, "do_semi": do_semi,
+    }
+
+
+def _infer_and_save(model, test_set, test_loader, valid_set,
+                    tta_tfm, tta_enabled, tta_num, device, batch_size,
+                    va_labels, out_path, logger, label="EMA"):
+    tta_va_acc = None
+    if tta_enabled and tta_num > 0:
+        logger.info(f"[{label}] TTA enabled: {tta_num} augmentations")
+        tta_logits = tta_forward(model, valid_set, tta_tfm, device, tta_num, batch_size)
+        tta_va_acc = (tta_logits.argmax(dim=-1) == va_labels).float().mean().item()
+        logger.info(f"[{label}] Valid acc (TTA): {tta_va_acc:.4f}")
+        tta_logits = tta_forward(model, test_set, tta_tfm, device, tta_num, batch_size)
+        predictions = tta_logits.argmax(dim=-1).numpy().tolist()
+    else:
+        predictions = []
+        with torch.no_grad():
+            for imgs, _ in tqdm(test_loader, desc=f"{label} Test"):
+                logits = model(imgs.to(device, non_blocking=True))
+                pred = logits.argmax(dim=-1).cpu().numpy().tolist()
+                predictions.extend(pred)
+
+    with open(out_path, "w") as f:
+        f.write("Id,Category\n")
+        for i, pred in enumerate(predictions):
+            f.write(f"{i},{pred}\n")
+    logger.info(f"[{label}] Saved predictions: {out_path} ({len(predictions)} samples)")
+    return predictions, tta_va_acc
+
+
+def _log_summary(logger, n_epochs, best_metrics, best_path, out_path,
+                 tta_va_acc, tta_enabled, tta_num,
+                 swa_enabled, swa_model, swa_start_epoch,
+                 swa_va_loss, swa_va_acc, swa_tta_va_acc, swa_path, swa_out_path):
+    sep = "=" * 60
+    logger.info("")
+    logger.info(sep)
+    logger.info("  TRAINING SUMMARY")
+    logger.info(sep)
+
+    logger.info("")
+    logger.info("  [Best EMA Model]")
+    if best_metrics:
+        bm = best_metrics
+        logger.info(f"    Epoch:       {bm['epoch']}/{n_epochs}")
+        logger.info(f"    Train Loss:  {bm['train_loss']:.4f}")
+        logger.info(f"    Train Acc:   {bm['train_acc']:.4f}")
+        logger.info(f"    Valid Loss:  {bm['valid_loss']:.4f}")
+        logger.info(f"    Valid Acc:   {bm['valid_acc']:.4f}")
+        tta_va_str = f"{tta_va_acc:.4f}" if tta_va_acc is not None else "N/A"
+        logger.info(f"    Valid (TTA): {tta_va_str}")
+        logger.info(f"    Mask:        {bm['mask']:.3f}")
+        logger.info(f"    Lambda_u:    {bm['lambda_u']:.3f}")
+        logger.info(f"    LR:          {bm['lr']:.2e}")
+    logger.info(f"    Checkpoint:  {best_path}")
+    logger.info(f"    Predictions: {out_path}")
+
+    if swa_enabled and swa_model is not None:
+        logger.info("")
+        logger.info("  [SWA Model]")
+        logger.info(f"    Avg Range:   epoch {swa_start_epoch}~{n_epochs} ({n_epochs - swa_start_epoch} epochs)")
+        logger.info(f"    Valid Loss:  {swa_va_loss:.4f}")
+        logger.info(f"    Valid Acc:   {swa_va_acc:.4f}")
+        swa_tta_str = f"{swa_tta_va_acc:.4f}" if swa_tta_va_acc is not None else "N/A"
+        logger.info(f"    Valid (TTA): {swa_tta_str}")
+        logger.info(f"    Checkpoint:  {swa_path}")
+        logger.info(f"    Predictions: {swa_out_path}")
+
+    logger.info("")
+    logger.info(sep)
+    logger.info("  Done.")
+    logger.info(sep)
+
+
+def main(config_path: str):
+    date = datetime.now().strftime("%Y%m%d-%H%M%S")
+    logger = _build_logger(date)
+
+    # load config
+    cfg = load_config(config_path)
+    logger.info(f"date={date}")
+    logger.info("config=\n" + json.dumps(cfg, indent=2, sort_keys=True))
+
+    device = "cuda" if torch.cuda.is_available() else "cpu"
+    logger.info(f"Device: {device}")
+
+    set_seed(int(cfg["seed"]))
+
+    # ===========
+    # Data
+    # ===========
+    tfms = _build_transforms(cfg, logger)
+    test_tfm = tfms["test"]
+    tta_tfm = tfms["tta"]
+
+    data = _build_datasets_and_loaders(cfg, tfms, logger)
+    batch_size = data["batch_size"]
+    num_workers = data["num_workers"]
+    pin_memory = data["pin_memory"]
+    do_semi = data["do_semi"]
+    train_set, valid_set, test_set = data["train_set"], data["valid_set"], data["test_set"]
+    train_loader = data["train_loader"]
+    valid_loader = data["valid_loader"]
+    unlabeled_loader = data["unlabeled_loader"]
+    test_loader = data["test_loader"]
 
     # ===========
     # Model
@@ -760,7 +836,7 @@ def main(config_path: str):
 
     # do semi-supervised learning (FixMatch-style, no ConcatDataset)
     for epoch in range(1, n_epochs + 1):
-        # warmup: you can disable unsup loss before warmup_epochs
+        # warmup: can disable unsup loss before warmup_epochs
         use_unsup = do_semi and (epoch > warmup_epochs)
 
         if use_unsup:
@@ -788,7 +864,7 @@ def main(config_path: str):
             accum_steps=accum_steps,
         )
 
-        # Validate with EMA teacher (your final inference target)
+        # Validate with EMA teacher (final inference target)
         va_loss, va_acc = valid_one_epoch(ema.ema, valid_loader, criterion, device)
 
         scheduler.step()
@@ -823,6 +899,7 @@ def main(config_path: str):
     # ===========
     # SWA finalize
     # ===========
+    swa_va_loss, swa_va_acc, swa_path = 0.0, 0.0, ""
     if swa_enabled and swa_model is not None:
         logger.info("SWA: updating batch normalization statistics...")
         # Build a simple loader for BN update (labeled data, no augmentation)
@@ -844,127 +921,48 @@ def main(config_path: str):
         logger.info(f"  -> saved SWA model: {swa_path}")
 
     # ===========
-    # Testing
+    # Inference
     # ===========
-
-    # Load best checkpoint (EMA teacher)
     ckpt = torch.load(best_path, map_location=device)
     if isinstance(ckpt, dict) and "ema" in ckpt:
         model.load_state_dict(ckpt["ema"])
     else:
-        # fallback (older checkpoints)
         model.load_state_dict(ckpt)
-
     model.eval()
 
     tta_enabled = bool(cfg.get("tta", {}).get("enabled", False))
     tta_num = int(cfg.get("tta", {}).get("num_augments", 5))
 
-    if tta_enabled and tta_num > 0:
-        logger.info(f"TTA enabled: {tta_num} augmentations")
-        # TTA validation
-        tta_logits = tta_forward(model, valid_set, tta_tfm, device, tta_num, batch_size)
-        va_labels = []
-        for _, lbl in DataLoader(valid_set, batch_size=batch_size, shuffle=False, num_workers=0):
-            va_labels.append(lbl)
-        va_labels = torch.cat(va_labels, dim=0)
-        tta_va_acc = (tta_logits.argmax(dim=-1) == va_labels).float().mean().item()
-        logger.info(f"Valid acc (TTA): {tta_va_acc:.4f} (base best: {best_acc:.4f})")
-        # TTA test
-        tta_logits = tta_forward(model, test_set, tta_tfm, device, tta_num, batch_size)
-        predictions = tta_logits.argmax(dim=-1).numpy().tolist()
-    else:
-        predictions = []
-        with torch.no_grad():
-            for imgs, _ in tqdm(test_loader, desc="Test"):
-                logits = model(imgs.to(device, non_blocking=True))
-                pred = logits.argmax(dim=-1).cpu().numpy().tolist()
-                predictions.extend(pred)
-
-    logger.info(f"#pred: {len(predictions)}")
+    va_labels = []
+    for _, lbl in DataLoader(valid_set, batch_size=batch_size, shuffle=False, num_workers=0):
+        va_labels.append(lbl)
+    va_labels = torch.cat(va_labels, dim=0)
 
     out_path = _append_date_suffix(str(cfg["output"]["predict_path"]), date)
-    with open(out_path, "w") as f:
-        f.write("Id,Category\n")
-        for i, pred in enumerate(predictions):
-            f.write(f"{i},{pred}\n")
+    _, tta_va_acc = _infer_and_save(
+        model, test_set, test_loader, valid_set,
+        tta_tfm, tta_enabled, tta_num, device, batch_size,
+        va_labels, out_path, logger, label="EMA",
+    )
 
-    logger.info(f"Saved predictions: {out_path}")
-
-    # SWA predictions (separate CSV)
+    swa_tta_va_acc = None
+    swa_out_path = ""
     if swa_enabled and swa_model is not None:
-        logger.info("Generating SWA predictions...")
-        if tta_enabled and tta_num > 0:
-            # Need to temporarily swap model for TTA
-            swa_inner = swa_model.module
-            swa_inner.eval()
-            # TTA validation with SWA
-            swa_tta_logits = tta_forward(swa_inner, valid_set, tta_tfm, device, tta_num, batch_size)
-            swa_tta_va_acc = (swa_tta_logits.argmax(dim=-1) == va_labels).float().mean().item()
-            logger.info(f"SWA Valid acc (TTA): {swa_tta_va_acc:.4f}")
-            # TTA test with SWA
-            swa_tta_logits = tta_forward(swa_inner, test_set, tta_tfm, device, tta_num, batch_size)
-            swa_predictions = swa_tta_logits.argmax(dim=-1).numpy().tolist()
-        else:
-            swa_predictions = []
-            swa_inner = swa_model.module
-            swa_inner.eval()
-            with torch.no_grad():
-                for imgs, _ in tqdm(test_loader, desc="SWA Test"):
-                    logits = swa_inner(imgs.to(device, non_blocking=True))
-                    pred = logits.argmax(dim=-1).cpu().numpy().tolist()
-                    swa_predictions.extend(pred)
-
+        swa_inner = swa_model.module
+        swa_inner.eval()
         swa_out_path = _append_date_suffix("swa-predict.csv", date)
-        with open(swa_out_path, "w") as f:
-            f.write("Id,Category\n")
-            for i, pred in enumerate(swa_predictions):
-                f.write(f"{i},{pred}\n")
-        logger.info(f"Saved SWA predictions: {swa_out_path}")
+        _, swa_tta_va_acc = _infer_and_save(
+            swa_inner, test_set, test_loader, valid_set,
+            tta_tfm, tta_enabled, tta_num, device, batch_size,
+            va_labels, swa_out_path, logger, label="SWA",
+        )
 
-    # ===========
-    # Final Summary
-    # ===========
-    sep = "=" * 60
-    logger.info("")
-    logger.info(sep)
-    logger.info("  TRAINING SUMMARY")
-    logger.info(sep)
-
-    # Best model summary
-    logger.info("")
-    logger.info("  [Best EMA Model]")
-    if best_metrics:
-        bm = best_metrics
-        logger.info(f"    Epoch:       {bm['epoch']}/{n_epochs}")
-        logger.info(f"    Train Loss:  {bm['train_loss']:.4f}")
-        logger.info(f"    Train Acc:   {bm['train_acc']:.4f}")
-        logger.info(f"    Valid Loss:  {bm['valid_loss']:.4f}")
-        logger.info(f"    Valid Acc:   {bm['valid_acc']:.4f}")
-        tta_va_str = f"{tta_va_acc:.4f}" if tta_enabled and tta_num > 0 else "N/A"
-        logger.info(f"    Valid (TTA): {tta_va_str}")
-        logger.info(f"    Mask:        {bm['mask']:.3f}")
-        logger.info(f"    Lambda_u:    {bm['lambda_u']:.3f}")
-        logger.info(f"    LR:          {bm['lr']:.2e}")
-    logger.info(f"    Checkpoint:  {best_path}")
-    logger.info(f"    Predictions: {out_path}")
-
-    # SWA model summary
-    if swa_enabled and swa_model is not None:
-        logger.info("")
-        logger.info("  [SWA Model]")
-        logger.info(f"    Avg Range:   epoch {swa_start_epoch}~{n_epochs} ({n_epochs - swa_start_epoch} epochs)")
-        logger.info(f"    Valid Loss:  {swa_va_loss:.4f}")
-        logger.info(f"    Valid Acc:   {swa_va_acc:.4f}")
-        swa_tta_str = f"{swa_tta_va_acc:.4f}" if tta_enabled and tta_num > 0 else "N/A"
-        logger.info(f"    Valid (TTA): {swa_tta_str}")
-        logger.info(f"    Checkpoint:  {swa_path}")
-        logger.info(f"    Predictions: {swa_out_path}")
-
-    logger.info("")
-    logger.info(sep)
-    logger.info("  Done.")
-    logger.info(sep)
+    _log_summary(
+        logger, n_epochs, best_metrics, best_path, out_path,
+        tta_va_acc, tta_enabled, tta_num,
+        swa_enabled, swa_model, swa_start_epoch,
+        swa_va_loss, swa_va_acc, swa_tta_va_acc, swa_path, swa_out_path,
+    )
 
 
 if __name__ == "__main__":
