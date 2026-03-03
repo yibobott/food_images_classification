@@ -33,16 +33,18 @@
     }
   },
   "train": {
-    "n_epochs": 300,
+    "n_epochs": 150,
     "lr": 0.0007,
     "weight_decay": 0.0005,
     "label_smoothing": 0.05,
     "dropout": 0.2,
     "accum_steps": 2,
+    "scheduler": "onecycle",
+    "max_lr": 0.003,
     "mix": {
       "enabled": true,
       "alpha": 0.2,
-      "mode": "mixup",
+      "mode": "cutmix",
       "_comment": "mode can be 'mixup' or 'cutmix'"
     }
   },
@@ -65,7 +67,7 @@
     "randaugment_num_ops": 2,
     "randaugment_magnitude": 9,
     "ema": {
-      "decay": 0.999
+      "decay": 0.995
     }
   },
   "output": {

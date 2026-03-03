@@ -30,6 +30,7 @@ import logging
 import sys
 from datetime import datetime
 import copy
+import math
 from torch.optim.swa_utils import AveragedModel, SWALR, update_bn
 
 
@@ -74,6 +75,8 @@ DEFAULT_CONFIG = {
         "label_smoothing": 0.1,
         "accum_steps": 1,
         "dropout": 0.5,
+        "scheduler": "cosine",
+        "max_lr": 3e-3,
         "mix": {
             "enabled": False,
             "alpha": 0.2,
@@ -400,6 +403,7 @@ def train_one_epoch(
     mixup_alpha: float = 0.2,
     mixup_mode: str = "mixup",
     accum_steps: int = 1,
+    scheduler=None,
 ):
     model.train()
     ema.ema.eval()
@@ -477,6 +481,8 @@ def train_one_epoch(
         if _accum_count % accum_steps == 0:
             nn.utils.clip_grad_norm_(model.parameters(), 10.0)
             optimizer.step()
+            if scheduler is not None:
+                scheduler.step()
             optimizer.zero_grad()
             ema.update(model)
 
@@ -488,6 +494,8 @@ def train_one_epoch(
     if _accum_count % accum_steps != 0:
         nn.utils.clip_grad_norm_(model.parameters(), 10.0)
         optimizer.step()
+        if scheduler is not None:
+            scheduler.step()
         optimizer.zero_grad()
         ema.update(model)
 
@@ -811,9 +819,23 @@ def main(config_path: str):
     mixup_mode = str(cfg.get("train", {}).get("mix", {}).get("mode", "mixup"))
     accum_steps = int(cfg.get("train", {}).get("accum_steps", 1))
 
+    sched_type = str(cfg.get("train", {}).get("scheduler", "cosine"))
+    max_lr = float(cfg.get("train", {}).get("max_lr", 0.003))
+
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
-    scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs)
+
+    if sched_type == "onecycle":
+        steps_per_epoch = math.ceil(len(train_loader) / max(accum_steps, 1))
+        scheduler = torch.optim.lr_scheduler.OneCycleLR(
+            optimizer, max_lr=max_lr,
+            epochs=n_epochs, steps_per_epoch=steps_per_epoch,
+            pct_start=0.3,
+        )
+        logger.info(f"Scheduler: OneCycleLR (max_lr={max_lr}, steps/epoch={steps_per_epoch})")
+    else:
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=n_epochs)
+        logger.info(f"Scheduler: CosineAnnealingLR (T_max={n_epochs})")
 
     warmup_epochs = int(cfg["semi"]["warmup_epochs"])
     pseudo_threshold = float(cfg["semi"]["pseudo_threshold"])
@@ -850,6 +872,11 @@ def main(config_path: str):
         else:
             lambda_u_eff = 0.0
 
+        in_swa = swa_enabled and epoch >= swa_start_epoch
+        # OneCycleLR steps per batch inside train_one_epoch;
+        # CosineAnnealingLR steps per epoch below.
+        batch_sched = scheduler if (sched_type == "onecycle" and not in_swa) else None
+
         tr_loss, tr_acc, tr_mask = train_one_epoch(
             model=model,
             ema=ema,
@@ -864,19 +891,20 @@ def main(config_path: str):
             mixup_alpha=mixup_alpha,
             mixup_mode=mixup_mode,
             accum_steps=accum_steps,
+            scheduler=batch_sched,
         )
 
         # Validate with EMA teacher (final inference target)
         va_loss, va_acc = valid_one_epoch(ema.ema, valid_loader, criterion, device)
 
-        if swa_enabled and epoch >= swa_start_epoch:
+        if in_swa:
             swa_scheduler.step()
-        else:
+        elif sched_type != "onecycle":
             scheduler.step()
 
         logger.info(
             f"Epoch {epoch:02d}/{n_epochs} | train loss {tr_loss:.4f} acc {tr_acc:.4f} mask {tr_mask:.3f} u {lambda_u_eff:.3f} | "
-            f"valid loss {va_loss:.4f} acc {va_acc:.4f} | lr {scheduler.get_last_lr()[0]:.2e}"
+            f"valid loss {va_loss:.4f} acc {va_acc:.4f} | lr {optimizer.param_groups[0]['lr']:.2e}"
         )
 
         if va_acc > best_acc:
@@ -889,7 +917,7 @@ def main(config_path: str):
                 "valid_acc": va_acc,
                 "mask": tr_mask,
                 "lambda_u": lambda_u_eff,
-                "lr": scheduler.get_last_lr()[0],
+                "lr": optimizer.param_groups[0]['lr'],
             }
             torch.save(
                 {"student": model.state_dict(), "ema": ema.ema.state_dict(), "best_acc": best_acc},
