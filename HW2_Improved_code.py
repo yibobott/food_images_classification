@@ -67,11 +67,16 @@ DEFAULT_CONFIG = {
         "lr": 3e-4,
         "weight_decay": 1e-4,
         "label_smoothing": 0.1,
+        "accum_steps": 1,
         "mix": {
             "enabled": False,
             "alpha": 0.2,
             "mode": "mixup" # mode can be mixup or cutmix
         }
+    },
+    "tta": {
+        "enabled": False,
+        "num_augments": 5,
     },
     "semi": {
         "enabled": True,
@@ -359,6 +364,7 @@ def train_one_epoch(
     mixup_enabled: bool = False,
     mixup_alpha: float = 0.2,
     mixup_mode: str = "mixup",
+    accum_steps: int = 1,
 ):
     model.train()
     ema.ema.eval()
@@ -370,6 +376,9 @@ def train_one_epoch(
     unl_it = None
     if unlabeled_loader is not None and float(lambda_u) > 0.0:
         unl_it = iter(unlabeled_loader)
+
+    optimizer.zero_grad()
+    _accum_count = 0
 
     for imgs_x, labels_x in tqdm(labeled_loader, desc="Train", leave=False):
         imgs_x = imgs_x.to(device, non_blocking=True)
@@ -427,17 +436,25 @@ def train_one_epoch(
             mask_ratios.append(0.0)
             loss = loss_x
 
-        optimizer.zero_grad()
-        loss.backward()
-        nn.utils.clip_grad_norm_(model.parameters(), 10.0)
-        optimizer.step()
+        (loss / accum_steps).backward()
+        _accum_count += 1
 
-        # EMA update AFTER student step
-        ema.update(model)
+        if _accum_count % accum_steps == 0:
+            nn.utils.clip_grad_norm_(model.parameters(), 10.0)
+            optimizer.step()
+            optimizer.zero_grad()
+            ema.update(model)
 
         acc = (logits_acc.argmax(dim=-1) == labels_x).float().mean().item()
         losses.append(loss.item())
         accs.append(acc)
+
+    # flush remaining accumulated gradients
+    if _accum_count % accum_steps != 0:
+        nn.utils.clip_grad_norm_(model.parameters(), 10.0)
+        optimizer.step()
+        optimizer.zero_grad()
+        ema.update(model)
 
     mr = float(np.mean(mask_ratios)) if len(mask_ratios) > 0 else 0.0
     return float(np.mean(losses)), float(np.mean(accs)), mr
@@ -457,6 +474,31 @@ def valid_one_epoch(model, loader, criterion, device):
         accs.append(acc)
     return float(np.mean(losses)), float(np.mean(accs))
 
+
+@torch.no_grad()
+def tta_forward(model, dataset, tta_tfm, device, num_augments=5, batch_size=64):
+    # Average logits: 1 base pass (dataset.transform) + N augmented passes (tta_tfm).
+    model.eval()
+    orig_tfm = dataset.transform
+
+    # base pass (deterministic)
+    loader = DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0)
+    chunks = []
+    for imgs, _ in tqdm(loader, desc="TTA base", leave=False):
+        chunks.append(model(imgs.to(device, non_blocking=True)).cpu())
+    summed = torch.cat(chunks, dim=0)
+
+    # augmented passes
+    dataset.transform = tta_tfm
+    for ai in range(num_augments):
+        chunks = []
+        for imgs, _ in tqdm(DataLoader(dataset, batch_size=batch_size, shuffle=False, num_workers=0),
+                            desc=f"TTA {ai+1}/{num_augments}", leave=False):
+            chunks.append(model(imgs.to(device, non_blocking=True)).cpu())
+        summed += torch.cat(chunks, dim=0)
+
+    dataset.transform = orig_tfm
+    return summed / (1 + num_augments)
 
 
 def main(config_path: str):
@@ -529,6 +571,13 @@ def main(config_path: str):
 
     test_tfm = transforms.Compose([
         transforms.Resize((img_size, img_size)),
+        transforms.ToTensor(),
+        transforms.Normalize(mean, std),
+    ])
+
+    tta_tfm = transforms.Compose([
+        transforms.RandomResizedCrop(img_size, scale=(0.8, 1.0), ratio=(0.9, 1.1)),
+        transforms.RandomHorizontalFlip(p=0.5),
         transforms.ToTensor(),
         transforms.Normalize(mean, std),
     ])
@@ -642,6 +691,7 @@ def main(config_path: str):
     mixup_enabled = bool(cfg.get("train", {}).get("mix", {}).get("enabled", False))
     mixup_alpha = float(cfg.get("train", {}).get("mix", {}).get("alpha", 0.2))
     mixup_mode = str(cfg.get("train", {}).get("mix", {}).get("mode", "mixup"))
+    accum_steps = int(cfg.get("train", {}).get("accum_steps", 1))
 
     criterion = nn.CrossEntropyLoss(label_smoothing=label_smoothing)
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=weight_decay)
@@ -682,6 +732,7 @@ def main(config_path: str):
             mixup_enabled=mixup_enabled,
             mixup_alpha=mixup_alpha,
             mixup_mode=mixup_mode,
+            accum_steps=accum_steps,
         )
 
         # Validate with EMA teacher (your final inference target)
@@ -716,12 +767,29 @@ def main(config_path: str):
 
     model.eval()
 
-    predictions = []
-    with torch.no_grad():
-        for imgs, _ in tqdm(test_loader, desc="Test"):
-            logits = model(imgs.to(device, non_blocking=True))
-            pred = logits.argmax(dim=-1).cpu().numpy().tolist()
-            predictions.extend(pred)
+    tta_enabled = bool(cfg.get("tta", {}).get("enabled", False))
+    tta_num = int(cfg.get("tta", {}).get("num_augments", 5))
+
+    if tta_enabled and tta_num > 0:
+        logger.info(f"TTA enabled: {tta_num} augmentations")
+        # TTA validation
+        tta_logits = tta_forward(model, valid_set, tta_tfm, device, tta_num, batch_size)
+        va_labels = []
+        for _, lbl in DataLoader(valid_set, batch_size=batch_size, shuffle=False, num_workers=0):
+            va_labels.append(lbl)
+        va_labels = torch.cat(va_labels, dim=0)
+        tta_va_acc = (tta_logits.argmax(dim=-1) == va_labels).float().mean().item()
+        logger.info(f"Valid acc (TTA): {tta_va_acc:.4f} (base best: {best_acc:.4f})")
+        # TTA test
+        tta_logits = tta_forward(model, test_set, tta_tfm, device, tta_num, batch_size)
+        predictions = tta_logits.argmax(dim=-1).numpy().tolist()
+    else:
+        predictions = []
+        with torch.no_grad():
+            for imgs, _ in tqdm(test_loader, desc="Test"):
+                logits = model(imgs.to(device, non_blocking=True))
+                pred = logits.argmax(dim=-1).cpu().numpy().tolist()
+                predictions.extend(pred)
 
     logger.info(f"#pred: {len(predictions)}")
 
