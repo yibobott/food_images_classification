@@ -6,22 +6,36 @@ Food-11 dataset (11 classes) image classification with semi-supervised learning.
 
 ```bash
 pip install -r requirements.txt
-python HW2_Improved_code.py --config config.json
+python train.py --config config.json
 ```
 
 ## Project Structure
 
 ```
 kaggle/
-├── HW2_Improved_code.py   # Main training script
-├── config.json             # Hyperparameter configuration
-├── requirements.txt        # Python dependencies
-└── food11/                 # Dataset (not included)
+├── train.py                    # Entry point (main)
+├── config.json                 # Hyperparameter configuration
+├── requirements.txt            # Python dependencies
+├── HW2_Improved_code.py        # Original single-file version (reference)
+├── utils/
+│   ├── config.py               # Config dataclasses + load_config
+│   ├── logger.py               # build_logger
+│   └── misc.py                 # set_seed, rgb_loader, rand_bbox
+├── models/
+│   ├── resnet.py               # CIFAR-style ResNet-18 + SE attention
+│   └── ema.py                  # EMA teacher
+├── data/
+│   ├── transforms.py           # Transforms dataclass + build_transforms
+│   └── datasets.py             # DataBundle dataclass + UnlabeledPairDataset
+├── engine/
+│   ├── trainer.py              # BestMetrics dataclass + train/valid loops
+│   └── inference.py            # RunSummary dataclass + TTA + inference
+└── food11/                     # Dataset (not included)
     ├── training/
-    │   ├── labeled/        # 2,970 labeled images
-    │   └── unlabeled/      # 6,786 unlabeled images
-    ├── validation/         # 660 images
-    └── testing/            # 3,347 images
+    │   ├── labeled/            # 2,970 labeled images
+    │   └── unlabeled/          # 6,786 unlabeled images
+    ├── validation/             # 660 images
+    └── testing/                # 3,347 images
 ```
 
 ## Differences from Baseline
