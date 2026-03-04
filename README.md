@@ -16,7 +16,6 @@ kaggle/
 ├── train.py                    # Entry point (main)
 ├── config.json                 # Hyperparameter configuration
 ├── requirements.txt            # Python dependencies
-├── HW2_Improved_code.py        # Original single-file version (reference)
 ├── utils/
 │   ├── config.py               # Config dataclasses + load_config
 │   ├── logger.py               # build_logger
