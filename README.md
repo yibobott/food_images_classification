@@ -1,165 +1,135 @@
-# HW2
+# HW2 - Food-11 Image Classification
 
-## Requirements
+Food-11 dataset (11 classes) image classification with semi-supervised learning.
 
-- Python
-- GPU is optional (CUDA if available)
-
-Install packages:
+## Quick Start
 
 ```bash
 pip install -r requirements.txt
-```
-
-## Dataset
-
-Expected folder structure (relative to `kaggle/`):
-
-```text
-food11/
-  training/
-    labeled/
-    unlabeled/
-  validation/
-  testing/
-```
-
-## Run
-
-Default run
-
-```bash
-python HW2_Improved_code.py
-```
-
-Run with a specific config:
-
-```bash
 python HW2_Improved_code.py --config config.json
 ```
 
-At startup the script prints:
+## Project Structure
 
-- The run timestamp `date`
-- The merged runtime config (pretty-printed JSON)
-
-## Configuration Overview
-
-The training behavior is fully controlled by `config.json`.
-Below is a description of the main configuration fields.
-
-Training Settings:
-
-| Key                     | Description                                  |
-| ----------------------- | -------------------------------------------- |
-| `train.n_epochs`        | Total number of training epochs              |
-| `train.lr`              | Initial learning rate                        |
-| `train.weight_decay`    | Weight decay coefficient for AdamW optimizer |
-| `train.label_smoothing` | Label smoothing factor in `CrossEntropyLoss` |
-| `train.mixup.enabled`   | Enable MixUp for labeled batches             |
-| `train.mixup.alpha`     | Beta distribution parameter for MixUp        |
-
-Semi-Supervised Settings (FixMatch-style):
-
-| Key                          | Description                                             |
-| ---------------------------- | ------------------------------------------------------- |
-| `semi.enabled`               | Enable semi-supervised learning                         |
-| `semi.warmup_epochs`         | Number of epochs trained with labeled data only         |
-| `semi.pseudo_threshold`      | Confidence threshold for pseudo-label filtering         |
-| `semi.lambda_u`              | Weight for unsupervised loss                            |
-| `semi.lambda_u_ramp_epochs`  | Epochs to gradually ramp up `lambda_u`                  |
-| `semi.unsup_batch_size`      | Batch size for unlabeled data                           |
-| `semi.ema.decay`             | Exponential Moving Average decay rate for teacher model |
-| `semi.randaugment_num_ops`   | Number of operations used in RandAugment                |
-| `semi.randaugment_magnitude` | Magnitude of RandAugment transformations                |
-
-Data & Dataloader Settings:
-
-| Key                      | Description                                  |
-| ------------------------ | -------------------------------------------- |
-| `data.train_labeled`     | Path to labeled training dataset             |
-| `data.train_unlabeled`   | Path to unlabeled training dataset           |
-| `data.valid`             | Path to validation dataset                   |
-| `data.test`              | Path to test dataset                         |
-| `dataloader.batch_size`  | Batch size for labeled data                  |
-| `dataloader.num_workers` | Number of worker processes for data loading  |
-| `dataloader.pin_memory`  | Enable pinned memory for faster GPU transfer |
-
-
-Image & Augmentation Settings:
-
-| Key                                 | Description                                              |
-| ----------------------------------- | -------------------------------------------------------- |
-| `image.img_size`                    | Input image size                                         |
-| `image.mean`                        | Normalization mean                                       |
-| `image.std`                         | Normalization standard deviation                         |
-| `augment.random_resized_crop_scale` | Scale range for `RandomResizedCrop`                      |
-| `augment.random_resized_crop_ratio` | Aspect ratio range for `RandomResizedCrop`               |
-| `augment.horizontal_flip_p`         | Probability of horizontal flip                           |
-| `augment.rotation_deg`              | Maximum rotation angle                                   |
-| `augment.color_jitter.*`            | Parameters for brightness, contrast, saturation, and hue |
-
-## Outputs
-
-Each run is stamped with a `date` (format: `YYYYmmdd-HHMMSS`).
-
-- Log file:
-  - `log-<date>.txt`
-- Checkpoint:
-  - `<best_path without extension>-<date>.pt`
-- Prediction CSV:
-  - `<predict_path without extension>-<date>.csv`
-
-Example:
-
-```text
-log-20260301-001530.txt
-best-model-20260301-001530.pt
-predict-20260301-001530.csv
+```
+kaggle/
+├── HW2_Improved_code.py   # Main training script
+├── config.json             # Hyperparameter configuration
+├── requirements.txt        # Python dependencies
+└── food11/                 # Dataset (not included)
+    ├── training/
+    │   ├── labeled/        # 2,970 labeled images
+    │   └── unlabeled/      # 6,786 unlabeled images
+    ├── validation/         # 660 images
+    └── testing/            # 3,347 images
 ```
 
-## Key Differences from Baseline
+## Differences from Baseline
 
-### 1. Stronger Model Backbone (CIFAR-style ResNet-18, from scratch)
-- Replaces the baseline CNN with a **custom ResNet-18 (BasicBlock)** implementation.
-- Uses a **CIFAR-style stem**:
-  - `3x3 conv, stride=1`
-  - **no maxpool**
-- No pre-trained weights are used.
+| Feature | Baseline (`HW2_Baseline code.ipynb`) | Improved (`HW2_Improved_code.py`) |
+|---------|--------------------------------------|-----------------------------------|
+| **Model** | 3-layer CNN (Conv→BN→ReLU→MaxPool ×3, FC) | CIFAR-style ResNet-18 + SE attention (11.26M params) |
+| **Image Size** | 128×128 | 160×160 (configurable) |
+| **Data Augmentation** | Resize only | RandomResizedCrop, HorizontalFlip, Rotation, ColorJitter, RandomErasing |
+| **Optimizer** | Adam (lr=3e-4, wd=1e-5) | AdamW (lr=7e-4, wd=5e-4) |
+| **LR Scheduler** | None | OneCycleLR (max_lr=0.003) |
+| **Loss** | CrossEntropyLoss | CrossEntropyLoss + Label Smoothing (0.05) |
+| **Semi-supervised** | Skeleton only (not implemented) | FixMatch-style: EMA teacher + pseudo labeling with confidence threshold |
+| **EMA** | None | Exponential Moving Average teacher (decay=0.995) |
+| **Unlabeled Aug** | None | RandAugment (strong) + weak augmentation pair |
+| **CutMix** | None | CutMix on labeled data (alpha=0.2) |
+| **Gradient Accumulation** | None | accum_steps=2 (effective batch=64) |
+| **TTA** | None | Test-Time Augmentation (10 augmentations, logit averaging) |
+| **SWA** | None | Stochastic Weight Averaging (last 10% epochs) |
+| **Dropout** | None | 0.2 (before FC layer) |
+| **Batch Size** | 128 | 32 (labeled) / 64 (unlabeled) |
+| **Epochs** | 1 (placeholder) | 150 |
+| **Config** | Hardcoded | External JSON config with defaults |
+| **Logging** | print | File + console logging with training summary |
 
-### 2. Semi-Supervised Learning (FixMatch-style)
-- Uses both labeled and unlabeled images during training.
-- For each unlabeled image, the dataset returns:
-  - **weakly-augmented** view (for teacher prediction)
-  - **strongly-augmented** view (for student training)
-- The teacher produces pseudo labels on weak views; the student is trained to match them on strong views.
-- A confidence threshold (`pseudo_threshold`) filters pseudo labels.
+### Key Architectural Improvements
 
-### 3. EMA Teacher (Exponential Moving Average)
-- Maintains a teacher model as an EMA of the student parameters:
-  - `teacher = decay * teacher + (1 - decay) * student`
-- Validation is performed using the **EMA teacher**, which is often more stable than the raw student.
+1. **ResNet-18 with SE Blocks**: Replaced the simple 3-layer CNN with a CIFAR-style ResNet-18 (no pretrained weights, no maxpool in stem). Each BasicBlock includes a Squeeze-and-Excitation (SE) module for channel-wise attention recalibration.
 
-### 4. Additional Data Augmentation Techniques
-- **Labeled training augmentation** includes:
-  - RandomResizedCrop
-  - HorizontalFlip
-  - Rotation
-  - ColorJitter
-- **Unlabeled strong augmentation** uses:
-  - RandomResizedCrop + HorizontalFlip
-  - **RandAugment** (if supported by current torchvision)
-- **Unlabeled weak augmentation** is kept mild to stabilize pseudo labels.
+2. **FixMatch Semi-supervised Learning**: The baseline only provided an empty `get_pseudo_labels` skeleton. The improved version implements a full FixMatch-style pipeline:
+   - EMA teacher generates pseudo labels on weakly-augmented unlabeled data
+   - Student learns from strongly-augmented (RandAugment) unlabeled data
+   - Confidence threshold (0.85) filters unreliable pseudo labels
+   - Lambda_u ramp-up over 30 epochs for stable training
 
-### 5. MixUp on Labeled Data Only
-- MixUp is optionally enabled **only on labeled batches** (does not modify unlabeled branch).
-- This reduces extra variables in semi-supervised training while improving robustness on labeled supervision.
+3. **OneCycleLR Scheduler**: Replaced no-scheduler training with OneCycleLR, which provides a warm-up phase followed by cosine annealing, significantly improving convergence efficiency.
 
-### 6. Improved Training Engineering
-- JSON-based configuration system (`config.json`) for reproducible experiments.
-- Cosine learning rate schedule with AdamW optimizer.
-- Automatic best checkpoint saving (EMA weights) based on validation accuracy.
-- Detailed logging:
-  - console output
-  - saved log file `log-<date>.txt`
-- Prediction output is saved with a date suffix to avoid overwriting.
+4. **CutMix Augmentation**: Applies region-level mixing on labeled data, encouraging the model to learn from partial views — particularly effective for food/texture classification.
+
+5. **Test-Time Augmentation (TTA)**: Averages logits from 10 augmented views + 1 base view at inference, improving prediction robustness.
+
+## Best Run Summary
+
+**Run ID**: `20260304-023200`
+
+### Configuration
+
+| Parameter | Value |
+|-----------|-------|
+| Image Size | 160×160 |
+| Batch Size | 32 (labeled) / 64 (unlabeled) |
+| Gradient Accumulation | 2 (effective batch = 64) |
+| Epochs | 150 |
+| Scheduler | OneCycleLR (max_lr=0.003) |
+| EMA Decay | 0.995 |
+| Mix Mode | CutMix (alpha=0.2) |
+| Pseudo Threshold | 0.85 |
+| Lambda_u | 0.4 |
+| Label Smoothing | 0.05 |
+| Dropout | 0.2 |
+| SWA | Enabled (last 10% epochs, lr=1e-5) |
+| TTA | 10 augmentations |
+
+### Best Result
+
+| Model | Valid Acc | TTA Valid Acc | Kaggle Test Acc |
+|-------|----------|---------------|-----------------|
+| **EMA Best** (epoch 139) | **0.8524** | **0.8652** | **0.84886** |
+| SWA | 0.8128 | 0.8379 | 0.84587 |
+
+### Output Files
+
+```
+Best-Result-20260304-023200/
+├── best-model-20260304-023200.pt       # EMA best model checkpoint
+├── swa-model-20260304-023200.pt        # SWA model checkpoint
+├── predict-20260304-023200.csv         # EMA test predictions (3,347 samples)
+├── swa-predict-20260304-023200.csv     # SWA test predictions (3,347 samples)
+├── log-20260304-023200.txt             # Full training log
+└── swa-predict-kaggle-score.png        # Kaggle submission screenshot
+```
+
+### Training Summary
+
+```
+[Best EMA Model]
+  Epoch:       139/150
+  Train Loss:  0.9349
+  Train Acc:   0.9987
+  Valid Loss:  0.7406
+  Valid Acc:   0.8524
+  Valid (TTA): 0.8652
+
+[SWA Model]
+  Avg Range:   epoch 135~150 (15 epochs)
+  Valid Loss:  1.0724
+  Valid Acc:   0.8128
+  Valid (TTA): 0.8379
+```
+
+## Dependencies
+
+```
+numpy
+torch
+torchvision
+Pillow
+tqdm
+```
+
+No external packages beyond the baseline requirements. All model architectures are implemented from scratch without pretrained weights.
