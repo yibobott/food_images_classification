@@ -96,7 +96,6 @@ kaggle/
 
 ```
 Best-Result-20260304-023200/
-├── best-model-20260304-023200.pt       # EMA best model checkpoint
 ├── swa-model-20260304-023200.pt        # SWA model checkpoint
 ├── predict-20260304-023200.csv         # EMA test predictions (3,347 samples)
 ├── swa-predict-20260304-023200.csv     # SWA test predictions (3,347 samples)
