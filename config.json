@@ -11,7 +11,7 @@
     "test": "food11/testing"
   },
   "dataloader": {
-    "batch_size": 16,
+    "batch_size": 32,
     "num_workers": 8,
     "pin_memory": true
   },
@@ -43,7 +43,7 @@
     "weight_decay": 0.001,
     "label_smoothing": 0.1,
     "dropout": 0.3,
-    "accum_steps": 4,
+    "accum_steps": 2,
     "scheduler": "onecycle",
     "max_lr": 0.003,
     "use_amp": true,
@@ -68,7 +68,7 @@
     "warmup_epochs": 8,
     "pseudo_threshold": 0.95,
     "pseudo_threshold_end": 0.80,
-    "unsup_batch_size": 32,
+    "unsup_batch_size": 64,
     "lambda_u": 1.0,
     "lambda_u_ramp_epochs": 30,
     "randaugment_num_ops": 2,
