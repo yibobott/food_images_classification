@@ -41,6 +41,8 @@ def train_one_epoch(
     mixup_mode: str = "mixup",
     accum_steps: int = 1,
     scheduler: Optional[torch.optim.lr_scheduler._LRScheduler] = None,
+    use_amp: bool = False,
+    scaler: Optional[torch.amp.GradScaler] = None,
 ) -> tuple[float, float, float]:
     model.train()
     ema.ema.eval()
@@ -62,63 +64,74 @@ def train_one_epoch(
         labels_x = labels_x.to(device, non_blocking=True)
 
         # supervised
-        do_mixup = bool(mixup_enabled) and float(mixup_alpha) > 0.0 and imgs_x.size(0) > 1
-        if do_mixup:
-            lam = float(np.random.beta(float(mixup_alpha), float(mixup_alpha)))
-            perm = torch.randperm(imgs_x.size(0), device=imgs_x.device)
-            labels_a = labels_x
-            labels_b = labels_x[perm]
-            if mixup_mode == "cutmix":
-                imgs_mix = imgs_x.clone()
-                y1, x1, y2, x2 = rand_bbox(imgs_x.size(2), imgs_x.size(3), lam)
-                imgs_mix[:, :, y1:y2, x1:x2] = imgs_x[perm, :, y1:y2, x1:x2]
-                lam = 1.0 - float((y2 - y1) * (x2 - x1)) / float(imgs_x.size(2) * imgs_x.size(3))
+        with torch.amp.autocast("cuda", enabled=use_amp):
+            do_mixup = bool(mixup_enabled) and float(mixup_alpha) > 0.0 and imgs_x.size(0) > 1
+            if do_mixup:
+                lam = float(np.random.beta(float(mixup_alpha), float(mixup_alpha)))
+                perm = torch.randperm(imgs_x.size(0), device=imgs_x.device)
+                labels_a = labels_x
+                labels_b = labels_x[perm]
+                if mixup_mode == "cutmix":
+                    imgs_mix = imgs_x.clone()
+                    y1, x1, y2, x2 = rand_bbox(imgs_x.size(2), imgs_x.size(3), lam)
+                    imgs_mix[:, :, y1:y2, x1:x2] = imgs_x[perm, :, y1:y2, x1:x2]
+                    lam = 1.0 - float((y2 - y1) * (x2 - x1)) / float(imgs_x.size(2) * imgs_x.size(3))
+                else:
+                    lam = max(lam, 1.0 - lam)
+                    imgs_mix = lam * imgs_x + (1.0 - lam) * imgs_x[perm]
+                logits_x = model(imgs_mix)
+                loss_x = lam * criterion(logits_x, labels_a) + (1.0 - lam) * criterion(logits_x, labels_b)
+                with torch.no_grad():
+                    logits_acc = model(imgs_x)
             else:
-                lam = max(lam, 1.0 - lam)
-                imgs_mix = lam * imgs_x + (1.0 - lam) * imgs_x[perm]
-            logits_x = model(imgs_mix)
-            loss_x = lam * criterion(logits_x, labels_a) + (1.0 - lam) * criterion(logits_x, labels_b)
-            with torch.no_grad():
-                logits_acc = model(imgs_x)
+                logits_x = model(imgs_x)
+                loss_x = criterion(logits_x, labels_x)
+                logits_acc = logits_x
+
+            if unl_it is not None:
+                try:
+                    xw_u, xs_u = next(unl_it)
+                except StopIteration:
+                    unl_it = iter(unlabeled_loader)
+                    xw_u, xs_u = next(unl_it)
+
+                xw_u = xw_u.to(device, non_blocking=True)
+                xs_u = xs_u.to(device, non_blocking=True)
+
+                # unsupervised (teacher on weak, student on strong)
+                with torch.no_grad():
+                    t_logits = ema.ema(xw_u)
+                    t_prob = torch.softmax(t_logits, dim=-1)
+                    t_conf, t_pred = t_prob.max(dim=-1)
+                    mask = (t_conf >= float(pseudo_threshold)).float()
+                    mask_ratios.append(mask.mean().item())
+
+                s_logits_u = model(xs_u)
+                loss_u_all = F.cross_entropy(s_logits_u, t_pred, reduction="none")
+                # avoid div-by-0
+                denom = mask.sum().clamp(min=1.0)
+                loss_u = (loss_u_all * mask).sum() / denom
+                loss = loss_x + float(lambda_u) * loss_u
+            else:
+                mask_ratios.append(0.0)
+                loss = loss_x
+
+        scaled_loss = loss / accum_steps
+        if use_amp and scaler is not None:
+            scaler.scale(scaled_loss).backward()
         else:
-            logits_x = model(imgs_x)
-            loss_x = criterion(logits_x, labels_x)
-            logits_acc = logits_x
-
-        if unl_it is not None:
-            try:
-                xw_u, xs_u = next(unl_it)
-            except StopIteration:
-                unl_it = iter(unlabeled_loader)
-                xw_u, xs_u = next(unl_it)
-
-            xw_u = xw_u.to(device, non_blocking=True)
-            xs_u = xs_u.to(device, non_blocking=True)
-
-            # unsupervised (teacher on weak, student on strong)
-            with torch.no_grad():
-                t_logits = ema.ema(xw_u)
-                t_prob = torch.softmax(t_logits, dim=-1)
-                t_conf, t_pred = t_prob.max(dim=-1)
-                mask = (t_conf >= float(pseudo_threshold)).float()
-                mask_ratios.append(mask.mean().item())
-
-            s_logits_u = model(xs_u)
-            loss_u_all = F.cross_entropy(s_logits_u, t_pred, reduction="none")
-            # avoid div-by-0
-            denom = mask.sum().clamp(min=1.0)
-            loss_u = (loss_u_all * mask).sum() / denom
-            loss = loss_x + float(lambda_u) * loss_u
-        else:
-            mask_ratios.append(0.0)
-            loss = loss_x
-
-        (loss / accum_steps).backward()
+            scaled_loss.backward()
         _accum_count += 1
 
         if _accum_count % accum_steps == 0:
-            nn.utils.clip_grad_norm_(model.parameters(), 10.0)
-            optimizer.step()
+            if use_amp and scaler is not None:
+                scaler.unscale_(optimizer)
+                nn.utils.clip_grad_norm_(model.parameters(), 5.0)
+                scaler.step(optimizer)
+                scaler.update()
+            else:
+                nn.utils.clip_grad_norm_(model.parameters(), 10.0)
+                optimizer.step()
             if scheduler is not None:
                 scheduler.step()
             optimizer.zero_grad()
@@ -130,8 +143,14 @@ def train_one_epoch(
 
     # flush remaining accumulated gradients
     if _accum_count % accum_steps != 0:
-        nn.utils.clip_grad_norm_(model.parameters(), 10.0)
-        optimizer.step()
+        if use_amp and scaler is not None:
+            scaler.unscale_(optimizer)
+            nn.utils.clip_grad_norm_(model.parameters(), 5.0)
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            nn.utils.clip_grad_norm_(model.parameters(), 10.0)
+            optimizer.step()
         if scheduler is not None:
             scheduler.step()
         optimizer.zero_grad()
@@ -154,8 +173,9 @@ def valid_one_epoch(
     for imgs, labels in tqdm(loader, desc="Valid", leave=False):
         imgs = imgs.to(device, non_blocking=True)
         labels = labels.to(device, non_blocking=True)
-        logits = model(imgs)
-        loss = criterion(logits, labels)
+        with torch.amp.autocast("cuda", enabled=(device == "cuda")):
+            logits = model(imgs)
+            loss = criterion(logits, labels)
         acc = (logits.argmax(dim=-1) == labels).float().mean().item()
         losses.append(loss.item())
         accs.append(acc)

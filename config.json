@@ -1,5 +1,9 @@
 {
   "seed": 42,
+  "model": {
+    "arch": "wrn28_8",
+    "drop_path_rate": 0.1
+  },
   "data": {
     "train_labeled": "food11/training/labeled",
     "train_unlabeled": "food11/training/unlabeled",
@@ -7,43 +11,45 @@
     "test": "food11/testing"
   },
   "dataloader": {
-    "batch_size": 32,
+    "batch_size": 16,
     "num_workers": 8,
     "pin_memory": true
   },
   "image": {
-    "img_size": 160,
+    "img_size": 224,
     "mean": [0.485, 0.456, 0.406],
     "std": [0.229, 0.224, 0.225]
   },
   "augment": {
-    "random_resized_crop_scale": [0.7, 1.0],
+    "random_resized_crop_scale": [0.4, 1.0],
     "random_resized_crop_ratio": [0.9, 1.1],
     "horizontal_flip_p": 0.5,
-    "rotation_deg": 10,
+    "rotation_deg": 20,
     "color_jitter": {
-      "brightness": 0.25,
-      "contrast": 0.25,
-      "saturation": 0.25,
-      "hue": 0.05
+      "brightness": 0.4,
+      "contrast": 0.4,
+      "saturation": 0.4,
+      "hue": 0.1
     },
+    "grayscale_p": 0.1,
     "random_erasing": {
       "p": 0.4,
       "scale": [0.02, 0.2]
     }
   },
   "train": {
-    "n_epochs": 150,
+    "n_epochs": 200,
     "lr": 0.0007,
     "weight_decay": 0.001,
     "label_smoothing": 0.1,
     "dropout": 0.3,
-    "accum_steps": 2,
+    "accum_steps": 4,
     "scheduler": "onecycle",
     "max_lr": 0.003,
+    "use_amp": true,
     "mix": {
       "enabled": true,
-      "alpha": 0.2,
+      "alpha": 1.0,
       "mode": "cutmix",
       "_comment": "mode can be 'mixup' or 'cutmix'"
     }
@@ -60,9 +66,10 @@
   "semi": {
     "enabled": true,
     "warmup_epochs": 8,
-    "pseudo_threshold": 0.85,
-    "unsup_batch_size": 64,
-    "lambda_u": 0.4,
+    "pseudo_threshold": 0.95,
+    "pseudo_threshold_end": 0.80,
+    "unsup_batch_size": 32,
+    "lambda_u": 1.0,
     "lambda_u_ramp_epochs": 30,
     "randaugment_num_ops": 2,
     "randaugment_magnitude": 12,

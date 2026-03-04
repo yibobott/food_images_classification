@@ -74,6 +74,7 @@ class AugmentConfig:
     random_resized_crop_ratio: tuple[float, float] = (0.9, 1.1)
     horizontal_flip_p: float = 0.5
     rotation_deg: float = 15.0
+    grayscale_p: float = 0.0
     color_jitter: ColorJitterConfig = field(default_factory=ColorJitterConfig)
     random_erasing: RandomErasingConfig = field(default_factory=RandomErasingConfig)
 
@@ -86,9 +87,16 @@ class AugmentConfig:
             if "random_resized_crop_ratio" in d else (0.9, 1.1),
             horizontal_flip_p=d.get("horizontal_flip_p", 0.5),
             rotation_deg=d.get("rotation_deg", 15.0),
+            grayscale_p=d.get("grayscale_p", 0.0),
             color_jitter=ColorJitterConfig(**_filter_fields(ColorJitterConfig, d.get("color_jitter", {}))),
             random_erasing=RandomErasingConfig.from_dict(d.get("random_erasing", {})),
         )
+
+
+@dataclass
+class ModelConfig:
+    arch: str = "resnet18"
+    drop_path_rate: float = 0.0
 
 
 @dataclass
@@ -108,6 +116,7 @@ class TrainConfig:
     accum_steps: int = 1
     scheduler: str = "cosine"
     max_lr: float = 3e-3
+    use_amp: bool = False
     mix: MixConfig = field(default_factory=MixConfig)
 
     @classmethod
@@ -123,6 +132,7 @@ class TrainConfig:
             accum_steps=d.get("accum_steps", 1),
             scheduler=d.get("scheduler", "cosine"),
             max_lr=d.get("max_lr", 3e-3),
+            use_amp=d.get("use_amp", False),
             mix=MixConfig(**_filter_fields(MixConfig, mix_clean)),
         )
 
@@ -150,6 +160,7 @@ class SemiConfig:
     enabled: bool = True
     warmup_epochs: int = 5
     pseudo_threshold: float = 0.95
+    pseudo_threshold_end: float = -1.0
     unsup_batch_size: int = 128
     lambda_u: float = 1.0
     lambda_u_ramp_epochs: int = 30
@@ -164,6 +175,7 @@ class SemiConfig:
             enabled=d.get("enabled", True),
             warmup_epochs=d.get("warmup_epochs", 5),
             pseudo_threshold=d.get("pseudo_threshold", 0.95),
+            pseudo_threshold_end=d.get("pseudo_threshold_end", -1.0),
             unsup_batch_size=d.get("unsup_batch_size", 128),
             lambda_u=d.get("lambda_u", 1.0),
             lambda_u_ramp_epochs=d.get("lambda_u_ramp_epochs", 30),
@@ -184,6 +196,7 @@ class OutputConfig:
 @dataclass
 class Config:
     seed: int = 42
+    model: ModelConfig = field(default_factory=ModelConfig)
     data: DataConfig = field(default_factory=DataConfig)
     dataloader: DataLoaderConfig = field(default_factory=DataLoaderConfig)
     image: ImageConfig = field(default_factory=ImageConfig)
@@ -198,6 +211,7 @@ class Config:
     def from_dict(cls, d: dict) -> Config:
         return cls(
             seed=d.get("seed", 42),
+            model=ModelConfig(**_filter_fields(ModelConfig, d.get("model", {}))),
             data=DataConfig(**_filter_fields(DataConfig, d.get("data", {}))),
             dataloader=DataLoaderConfig(**_filter_fields(DataLoaderConfig, d.get("dataloader", {}))),
             image=ImageConfig.from_dict(d.get("image", {})),

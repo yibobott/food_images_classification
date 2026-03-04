@@ -30,8 +30,9 @@ def build_transforms(cfg: Config, logger: logging.Logger) -> Transforms:
 
     re_p = cfg.augment.random_erasing.p
     re_scale = cfg.augment.random_erasing.scale
+    grayscale_p = cfg.augment.grayscale_p
 
-    train_tfm = transforms.Compose([
+    train_ops = [
         transforms.RandomResizedCrop(img_size, scale=rrc_scale, ratio=rrc_ratio),
         transforms.RandomHorizontalFlip(p=cfg.augment.horizontal_flip_p),
         transforms.RandomRotation(cfg.augment.rotation_deg),
@@ -41,20 +42,30 @@ def build_transforms(cfg: Config, logger: logging.Logger) -> Transforms:
             saturation=cj.saturation,
             hue=cj.hue,
         ),
+    ]
+    if grayscale_p > 0:
+        train_ops.append(transforms.RandomGrayscale(p=grayscale_p))
+    train_ops += [
         transforms.ToTensor(),
         transforms.Normalize(mean, std),
         transforms.RandomErasing(p=re_p, scale=re_scale),
-    ])
+    ]
+    train_tfm = transforms.Compose(train_ops)
 
     if hasattr(transforms, "RandAugment"):
-        unlabeled_strong_tfm = transforms.Compose([
+        strong_ops = [
             transforms.RandomResizedCrop(img_size, scale=rrc_scale, ratio=rrc_ratio),
             transforms.RandomHorizontalFlip(p=cfg.augment.horizontal_flip_p),
             transforms.RandAugment(num_ops=ra_num_ops, magnitude=ra_magnitude),
+        ]
+        if grayscale_p > 0:
+            strong_ops.append(transforms.RandomGrayscale(p=grayscale_p))
+        strong_ops += [
             transforms.ToTensor(),
             transforms.Normalize(mean, std),
             transforms.RandomErasing(p=re_p, scale=re_scale),
-        ])
+        ]
+        unlabeled_strong_tfm = transforms.Compose(strong_ops)
     else:
         logger.warning("There is no RandAugment in the current torchvision version.")
         unlabeled_strong_tfm = train_tfm

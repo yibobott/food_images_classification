@@ -27,6 +27,7 @@ from utils.config import Config, load_config
 from utils.logger import build_logger
 from utils.misc import set_seed, rgb_loader, append_date_suffix
 from models.resnet import resnet18
+from models.wrn import wrn28_8
 from models.ema import EMA
 from data.transforms import build_transforms, Transforms
 from data.datasets import build_datasets_and_loaders, DataBundle
@@ -55,15 +56,21 @@ def setup(config_path: str) -> tuple[Config, logging.Logger, str, str]:
 
 def build_model(cfg: Config, device: str, logger: logging.Logger) -> tuple[nn.Module, EMA]:
     """
-    Create ResNet-18 student and EMA teacher.
+    Create student model and EMA teacher.
     """
+    arch = cfg.model.arch
     dropout = cfg.train.dropout
-    model = resnet18(num_classes=11, dropout=dropout).to(device)
+
+    if arch == "wrn28_8":
+        drop_path_rate = cfg.model.drop_path_rate
+        model = wrn28_8(num_classes=11, dropout=dropout, drop_path_rate=drop_path_rate).to(device)
+    else:
+        model = resnet18(num_classes=11, dropout=dropout).to(device)
 
     ema_decay = cfg.semi.ema.decay
     ema = EMA(model, decay=ema_decay).to(device)
 
-    logger.info(f"#params: {sum(p.numel() for p in model.parameters()) / 1e6:.3f} M")
+    logger.info(f"Model: {arch} | #params: {sum(p.numel() for p in model.parameters()) / 1e6:.3f} M")
     return model, ema
 
 
@@ -115,6 +122,11 @@ def train_loop(
     """
     Run the full training loop. Returns best metrics, best path, SWA model, SWA start epoch.
     """
+    use_amp = cfg.train.use_amp and device == "cuda"
+    scaler = torch.amp.GradScaler("cuda", enabled=use_amp) if use_amp else None
+    if use_amp:
+        logger.info("AMP (Automatic Mixed Precision) enabled")
+
     n_epochs = cfg.train.n_epochs
     accum_steps = cfg.train.accum_steps
     mixup_enabled = cfg.train.mix.enabled
@@ -122,9 +134,15 @@ def train_loop(
     mixup_mode = cfg.train.mix.mode
 
     warmup_epochs = cfg.semi.warmup_epochs
-    pseudo_threshold = cfg.semi.pseudo_threshold
+    pseudo_threshold_start = cfg.semi.pseudo_threshold
+    pseudo_threshold_end = cfg.semi.pseudo_threshold_end
     lambda_u = cfg.semi.lambda_u
     lambda_u_ramp_epochs = cfg.semi.lambda_u_ramp_epochs
+
+    # progressive threshold: if pseudo_threshold_end < 0, use fixed threshold
+    use_progressive_threshold = pseudo_threshold_end >= 0.0
+    if use_progressive_threshold:
+        logger.info(f"Progressive threshold: {pseudo_threshold_start:.2f} -> {pseudo_threshold_end:.2f}")
 
     best_acc = 0.0
     best_path = append_date_suffix(cfg.output.best_path, date)
@@ -145,6 +163,13 @@ def train_loop(
     for epoch in range(1, n_epochs + 1):
         # warmup: can disable unsup loss before warmup_epochs
         use_unsup = data.do_semi and (epoch > warmup_epochs)
+
+        # compute current pseudo threshold (progressive or fixed)
+        if use_progressive_threshold:
+            progress = min(1.0, float(epoch - 1) / max(n_epochs - 1, 1))
+            current_threshold = pseudo_threshold_start + (pseudo_threshold_end - pseudo_threshold_start) * progress
+        else:
+            current_threshold = pseudo_threshold_start
 
         if use_unsup:
             if lambda_u_ramp_epochs > 0:
@@ -168,13 +193,15 @@ def train_loop(
             optimizer=optimizer,
             criterion=criterion,
             device=device,
-            pseudo_threshold=pseudo_threshold if use_unsup else 1.1,  # effectively keep none in warmup
+            pseudo_threshold=current_threshold if use_unsup else 1.1,  # effectively keep none in warmup
             lambda_u=lambda_u_eff,
             mixup_enabled=mixup_enabled,
             mixup_alpha=mixup_alpha,
             mixup_mode=mixup_mode,
             accum_steps=accum_steps,
             scheduler=batch_sched,
+            use_amp=use_amp,
+            scaler=scaler,
         )
 
         # Validate with EMA teacher (final inference target)
@@ -186,7 +213,7 @@ def train_loop(
             scheduler.step()
 
         logger.info(
-            f"Epoch {epoch:02d}/{n_epochs} | train loss {tr_loss:.4f} acc {tr_acc:.4f} mask {tr_mask:.3f} u {lambda_u_eff:.3f} | "
+            f"Epoch {epoch:02d}/{n_epochs} | train loss {tr_loss:.4f} acc {tr_acc:.4f} mask {tr_mask:.3f} u {lambda_u_eff:.3f} thr {current_threshold:.3f} | "
             f"valid loss {va_loss:.4f} acc {va_acc:.4f} | lr {optimizer.param_groups[0]['lr']:.2e}"
         )
 
