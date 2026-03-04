@@ -28,16 +28,16 @@
       "hue": 0.05
     },
     "random_erasing": {
-      "p": 0.25,
+      "p": 0.4,
       "scale": [0.02, 0.2]
     }
   },
   "train": {
     "n_epochs": 150,
     "lr": 0.0007,
-    "weight_decay": 0.0005,
-    "label_smoothing": 0.05,
-    "dropout": 0.2,
+    "weight_decay": 0.001,
+    "label_smoothing": 0.1,
+    "dropout": 0.3,
     "accum_steps": 2,
     "scheduler": "onecycle",
     "max_lr": 0.003,
@@ -65,7 +65,7 @@
     "lambda_u": 0.4,
     "lambda_u_ramp_epochs": 30,
     "randaugment_num_ops": 2,
-    "randaugment_magnitude": 9,
+    "randaugment_magnitude": 12,
     "ema": {
       "decay": 0.995
     }
