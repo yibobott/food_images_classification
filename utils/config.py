@@ -186,6 +186,20 @@ class SemiConfig:
 
 
 @dataclass
+class ProgressiveResizeConfig:
+    enabled: bool = False
+    stage1_size: int = 160
+    stage1_epochs: int = 100
+
+
+@dataclass
+class SelfTrainingConfig:
+    enabled: bool = False
+    epochs: int = 150
+    threshold: float = 0.80
+
+
+@dataclass
 class OutputConfig:
     best_path: str = "best-model.pt"
     predict_path: str = "predict.csv"
@@ -205,6 +219,8 @@ class Config:
     tta: TTAConfig = field(default_factory=TTAConfig)
     swa: SWAConfig = field(default_factory=SWAConfig)
     semi: SemiConfig = field(default_factory=SemiConfig)
+    progressive_resize: ProgressiveResizeConfig = field(default_factory=ProgressiveResizeConfig)
+    self_training: SelfTrainingConfig = field(default_factory=SelfTrainingConfig)
     output: OutputConfig = field(default_factory=OutputConfig)
 
     @classmethod
@@ -220,6 +236,8 @@ class Config:
             tta=TTAConfig(**_filter_fields(TTAConfig, d.get("tta", {}))),
             swa=SWAConfig(**_filter_fields(SWAConfig, d.get("swa", {}))),
             semi=SemiConfig.from_dict(d.get("semi", {})),
+            progressive_resize=ProgressiveResizeConfig(**_filter_fields(ProgressiveResizeConfig, d.get("progressive_resize", {}))),
+            self_training=SelfTrainingConfig(**_filter_fields(SelfTrainingConfig, d.get("self_training", {}))),
             output=OutputConfig(**_filter_fields(OutputConfig, d.get("output", {}))),
         )
 

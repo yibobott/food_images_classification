@@ -75,6 +75,16 @@
       "decay": 0.995
     }
   },
+  "progressive_resize": {
+    "enabled": true,
+    "stage1_size": 160,
+    "stage1_epochs": 100
+  },
+  "self_training": {
+    "enabled": true,
+    "epochs": 150,
+    "threshold": 0.80
+  },
   "output": {
     "best_path": "best-model.pt",
     "predict_path": "predict.csv"

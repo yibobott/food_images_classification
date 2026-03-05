@@ -17,8 +17,8 @@ class Transforms:
     weak: transforms.Compose
 
 
-def build_transforms(cfg: Config, logger: logging.Logger) -> Transforms:
-    img_size = cfg.image.img_size
+def build_transforms(cfg: Config, logger: logging.Logger, img_size_override: int | None = None) -> Transforms:
+    img_size = img_size_override if img_size_override is not None else cfg.image.img_size
     mean = cfg.image.mean
     std = cfg.image.std
     cj = cfg.augment.color_jitter
