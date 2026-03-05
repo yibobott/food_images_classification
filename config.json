@@ -24,7 +24,7 @@
     "random_resized_crop_scale": [0.7, 1.0],
     "random_resized_crop_ratio": [0.9, 1.1],
     "horizontal_flip_p": 0.5,
-    "rotation_deg": 15,
+    "rotation_deg": 10,
     "color_jitter": {
       "brightness": 0.25,
       "contrast": 0.25,
@@ -32,7 +32,7 @@
       "hue": 0.05
     },
     "random_erasing": {
-      "p": 0.3,
+      "p": 0.25,
       "scale": [0.02, 0.2]
     }
   },
@@ -40,7 +40,7 @@
     "n_epochs": 250,
     "lr": 0.0007,
     "weight_decay": 0.0005,
-    "label_smoothing": 0.08,
+    "label_smoothing": 0.05,
     "dropout": 0.2,
     "accum_steps": 4,
     "scheduler": "onecycle",
@@ -48,7 +48,7 @@
     "use_amp": true,
     "mix": {
       "enabled": true,
-      "alpha": 0.4,
+      "alpha": 0.2,
       "mode": "cutmix",
       "_comment": "mode can be 'mixup' or 'cutmix'"
     }
@@ -70,7 +70,7 @@
     "lambda_u": 0.4,
     "lambda_u_ramp_epochs": 30,
     "randaugment_num_ops": 2,
-    "randaugment_magnitude": 12,
+    "randaugment_magnitude": 9,
     "ema": {
       "decay": 0.995
     }
