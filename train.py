@@ -582,6 +582,10 @@ def main(config_path: str) -> None:
             cfg_s1, date, logger, device,
         )
 
+        # Free Stage 1 resources before Stage 2
+        del optimizer1, scheduler1, data1, tfms1, cfg_s1
+        torch.cuda.empty_cache()
+
         # ─── Progressive Resize: Stage 2 (full image) ───
         logger.info(f"=== Progressive Resize Stage 2: img{cfg.image.img_size} x {s2_epochs} epochs ===")
         tfms = build_transforms(cfg, logger)
