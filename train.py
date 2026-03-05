@@ -11,6 +11,7 @@ python train.py --config config.json
 from __future__ import annotations
 
 import argparse
+import copy
 import json
 import logging
 import math
@@ -30,7 +31,7 @@ from models.resnet import resnet18
 from models.wrn import wrn28_8
 from models.ema import EMA
 from data.transforms import build_transforms, Transforms
-from data.datasets import build_datasets_and_loaders, DataBundle
+from data.datasets import build_datasets_and_loaders, DataBundle, PseudoLabeledDataset, UnlabeledPairDataset
 from engine.trainer import train_one_epoch, valid_one_epoch, BestMetrics
 from engine.inference import tta_forward, infer_and_save, log_summary, RunSummary
 
@@ -118,9 +119,11 @@ def train_loop(
     date: str,
     logger: logging.Logger,
     device: str,
+    epoch_offset: int = 0,
 ) -> tuple[BestMetrics, str, Optional[AveragedModel], int]:
     """
     Run the full training loop. Returns best metrics, best path, SWA model, SWA start epoch.
+    epoch_offset: added to epoch numbers for logging (used in progressive resizing).
     """
     use_amp = cfg.train.use_amp and device == "cuda"
     scaler = torch.amp.GradScaler("cuda", enabled=use_amp) if use_amp else None
@@ -212,15 +215,17 @@ def train_loop(
         elif sched_type != "onecycle":
             scheduler.step()
 
+        ge = epoch + epoch_offset
+        te = n_epochs + epoch_offset
         logger.info(
-            f"Epoch {epoch:02d}/{n_epochs} | train loss {tr_loss:.4f} acc {tr_acc:.4f} mask {tr_mask:.3f} u {lambda_u_eff:.3f} thr {current_threshold:.3f} | "
+            f"Epoch {ge:02d}/{te} | train loss {tr_loss:.4f} acc {tr_acc:.4f} mask {tr_mask:.3f} u {lambda_u_eff:.3f} thr {current_threshold:.3f} | "
             f"valid loss {va_loss:.4f} acc {va_acc:.4f} | lr {optimizer.param_groups[0]['lr']:.2e}"
         )
 
         if va_acc > best_acc:
             best_acc = va_acc
             best_metrics = BestMetrics(
-                epoch=epoch,
+                epoch=ge,
                 train_loss=tr_loss,
                 train_acc=tr_acc,
                 valid_loss=va_loss,
@@ -367,27 +372,247 @@ def run_inference(
 
 
 
+def generate_pseudo_labels(
+    model: nn.Module,
+    cfg: Config,
+    device: str,
+    threshold: float,
+    logger: logging.Logger,
+) -> tuple[list[str], list[int]]:
+    """
+    Use teacher model to generate pseudo-labels for all unlabeled data.
+    Returns (paths, labels) for samples above the confidence threshold.
+    """
+    import torchvision.transforms as T
+    model.eval()
+
+    img_size = cfg.image.img_size
+    tfm = T.Compose([
+        T.Resize((img_size, img_size)),
+        T.ToTensor(),
+        T.Normalize(cfg.image.mean, cfg.image.std),
+    ])
+    unl_set = DatasetFolder(
+        cfg.data.train_unlabeled, loader=rgb_loader,
+        extensions=("jpg", "jpeg", "png"), transform=tfm,
+    )
+    unl_loader = DataLoader(
+        unl_set, batch_size=cfg.dataloader.batch_size * 2, shuffle=False,
+        num_workers=cfg.dataloader.num_workers, pin_memory=cfg.dataloader.pin_memory,
+    )
+
+    all_paths = [p for (p, _) in unl_set.samples]
+    all_preds: list[int] = []
+    all_confs: list[float] = []
+
+    with torch.no_grad():
+        for imgs, _ in unl_loader:
+            imgs = imgs.to(device, non_blocking=True)
+            with torch.amp.autocast("cuda", enabled=(device == "cuda")):
+                logits = model(imgs)
+            probs = torch.softmax(logits, dim=-1)
+            confs, preds = probs.max(dim=-1)
+            all_preds.extend(preds.cpu().tolist())
+            all_confs.extend(confs.cpu().tolist())
+
+    # filter by threshold
+    kept_paths: list[str] = []
+    kept_labels: list[int] = []
+    for path, pred, conf in zip(all_paths, all_preds, all_confs):
+        if conf >= threshold:
+            kept_paths.append(path)
+            kept_labels.append(pred)
+
+    logger.info(
+        f"Pseudo-labels: {len(kept_paths)}/{len(all_paths)} samples above threshold {threshold:.2f} "
+        f"(avg conf: {sum(all_confs)/len(all_confs):.4f})"
+    )
+    return kept_paths, kept_labels
+
+
+def self_train_phase(
+    cfg: Config,
+    date: str,
+    logger: logging.Logger,
+    device: str,
+    teacher_path: str,
+) -> None:
+    """
+    Phase 2: Self-Training.
+    1. Load teacher (EMA) model and generate pseudo-labels for unlabeled data.
+    2. Combine labeled + pseudo-labeled data.
+    3. Train a new model from scratch (supervised only).
+    """
+    sep = "=" * 60
+    logger.info("")
+    logger.info(sep)
+    logger.info("  PHASE 2: SELF-TRAINING")
+    logger.info(sep)
+
+    # Load teacher
+    teacher_model, teacher_ema = build_model(cfg, device, logger)
+    ckpt = torch.load(teacher_path, map_location=device)
+    if isinstance(ckpt, dict) and "ema" in ckpt:
+        teacher_model.load_state_dict(ckpt["ema"])
+    else:
+        teacher_model.load_state_dict(ckpt)
+    teacher_model.eval()
+
+    # Generate pseudo-labels
+    st_threshold = cfg.self_training.threshold
+    pseudo_paths, pseudo_labels = generate_pseudo_labels(
+        teacher_model, cfg, device, st_threshold, logger,
+    )
+    del teacher_model, teacher_ema
+    torch.cuda.empty_cache()
+
+    # Build transforms (full img_size, no progressive resize in Phase 2)
+    tfms = build_transforms(cfg, logger)
+
+    # Build labeled dataset
+    labeled_set = DatasetFolder(
+        cfg.data.train_labeled, loader=rgb_loader,
+        extensions=("jpg", "jpeg", "png"), transform=tfms.train,
+    )
+    pseudo_set = PseudoLabeledDataset(pseudo_paths, pseudo_labels, transform=tfms.train)
+    combined_set = torch.utils.data.ConcatDataset([labeled_set, pseudo_set])
+    logger.info(f"Self-training data: {len(labeled_set)} labeled + {len(pseudo_set)} pseudo = {len(combined_set)} total")
+
+    # Build loaders
+    loader_kwargs: dict = {}
+    if cfg.dataloader.num_workers > 0:
+        loader_kwargs["persistent_workers"] = True
+        loader_kwargs["prefetch_factor"] = 2
+    train_loader = DataLoader(
+        combined_set, batch_size=cfg.dataloader.batch_size, shuffle=True,
+        num_workers=cfg.dataloader.num_workers, pin_memory=cfg.dataloader.pin_memory,
+        **loader_kwargs,
+    )
+    valid_set = DatasetFolder(
+        cfg.data.valid, loader=rgb_loader,
+        extensions=("jpg", "jpeg", "png"), transform=tfms.test,
+    )
+    valid_loader = DataLoader(
+        valid_set, batch_size=cfg.dataloader.batch_size, shuffle=False,
+        num_workers=cfg.dataloader.num_workers, pin_memory=cfg.dataloader.pin_memory,
+        **loader_kwargs,
+    )
+    test_set = DatasetFolder(
+        cfg.data.test, loader=rgb_loader,
+        extensions=("jpg", "jpeg", "png"), transform=tfms.test,
+    )
+    test_loader = DataLoader(
+        test_set, batch_size=cfg.dataloader.batch_size, shuffle=False,
+        num_workers=cfg.dataloader.num_workers, pin_memory=cfg.dataloader.pin_memory,
+        **loader_kwargs,
+    )
+
+    data = DataBundle(
+        train_set=labeled_set, valid_set=valid_set,
+        unlabeled_set=None, test_set=test_set,
+        train_loader=train_loader, valid_loader=valid_loader,
+        unlabeled_loader=None, test_loader=test_loader,
+        batch_size=cfg.dataloader.batch_size,
+        num_workers=cfg.dataloader.num_workers,
+        pin_memory=cfg.dataloader.pin_memory,
+        do_semi=False,
+    )
+
+    # Build new model from scratch
+    model, ema = build_model(cfg, device, logger)
+
+    # Build optimizer with self-training epochs
+    cfg_st = copy.deepcopy(cfg)
+    cfg_st.train.n_epochs = cfg.self_training.epochs
+
+    optimizer, scheduler, criterion, sched_type = build_optimizer(
+        model, cfg_st, train_loader, logger,
+    )
+
+    # Train (supervised only, no semi)
+    st_date = date + "-ST"
+    best_metrics, best_path, swa_model, swa_start_epoch = train_loop(
+        model, ema, data, optimizer, scheduler, criterion, sched_type,
+        cfg_st, st_date, logger, device,
+    )
+
+    # SWA finalize
+    swa_va_loss, swa_va_acc, swa_path = finalize_swa(
+        swa_model, cfg_st, data, criterion, device, st_date,
+        best_metrics.valid_acc, logger,
+    )
+
+    # Inference & summary
+    run_inference(
+        model, swa_model, data, tfms, cfg_st,
+        best_path, best_metrics,
+        swa_va_loss, swa_va_acc, swa_path, swa_start_epoch,
+        st_date, device, logger,
+    )
+
+
 def main(config_path: str) -> None:
     # Setup
     cfg, logger, date, device = setup(config_path)
 
-    # Data
-    tfms = build_transforms(cfg, logger)
-    data = build_datasets_and_loaders(cfg, tfms, logger)
-
     # Model
     model, ema = build_model(cfg, device, logger)
 
-    # Optimizer & scheduler
-    optimizer, scheduler, criterion, sched_type = build_optimizer(
-        model, cfg, data.train_loader, logger,
-    )
+    pr = cfg.progressive_resize
 
-    # Training loop
-    best_metrics, best_path, swa_model, swa_start_epoch = train_loop(
-        model, ema, data, optimizer, scheduler, criterion, sched_type,
-        cfg, date, logger, device,
-    )
+    if pr.enabled:
+        # ─── Progressive Resize: Stage 1 (small image) ───
+        s1_epochs = pr.stage1_epochs
+        total_epochs = cfg.train.n_epochs
+        s2_epochs = total_epochs - s1_epochs
+
+        logger.info(f"=== Progressive Resize Stage 1: img{pr.stage1_size} x {s1_epochs} epochs ===")
+        tfms1 = build_transforms(cfg, logger, img_size_override=pr.stage1_size)
+        data1 = build_datasets_and_loaders(cfg, tfms1, logger)
+
+        cfg_s1 = copy.deepcopy(cfg)
+        cfg_s1.train.n_epochs = s1_epochs
+        cfg_s1.swa.enabled = False
+
+        optimizer1, scheduler1, criterion, sched_type = build_optimizer(
+            model, cfg_s1, data1.train_loader, logger,
+        )
+        best_metrics, best_path, _, _ = train_loop(
+            model, ema, data1, optimizer1, scheduler1, criterion, sched_type,
+            cfg_s1, date, logger, device,
+        )
+
+        # ─── Progressive Resize: Stage 2 (full image) ───
+        logger.info(f"=== Progressive Resize Stage 2: img{cfg.image.img_size} x {s2_epochs} epochs ===")
+        tfms = build_transforms(cfg, logger)
+        data = build_datasets_and_loaders(cfg, tfms, logger)
+
+        cfg_s2 = copy.deepcopy(cfg)
+        cfg_s2.train.n_epochs = s2_epochs
+
+        optimizer2, scheduler2, criterion, sched_type = build_optimizer(
+            model, cfg_s2, data.train_loader, logger,
+        )
+        best_metrics, best_path, swa_model, swa_start_epoch = train_loop(
+            model, ema, data, optimizer2, scheduler2, criterion, sched_type,
+            cfg_s2, date, logger, device, epoch_offset=s1_epochs,
+        )
+        # adjust swa_start_epoch for correct summary display
+        swa_start_epoch = swa_start_epoch + s1_epochs if swa_start_epoch else swa_start_epoch
+        n_epochs_display = total_epochs
+    else:
+        # ─── Standard training (no progressive resize) ───
+        tfms = build_transforms(cfg, logger)
+        data = build_datasets_and_loaders(cfg, tfms, logger)
+
+        optimizer, scheduler, criterion, sched_type = build_optimizer(
+            model, cfg, data.train_loader, logger,
+        )
+        best_metrics, best_path, swa_model, swa_start_epoch = train_loop(
+            model, ema, data, optimizer, scheduler, criterion, sched_type,
+            cfg, date, logger, device,
+        )
+        n_epochs_display = cfg.train.n_epochs
 
     # SWA finalize
     swa_va_loss, swa_va_acc, swa_path = finalize_swa(
@@ -395,13 +620,19 @@ def main(config_path: str) -> None:
         best_metrics.valid_acc, logger,
     )
 
-    # Inference & summary
+    # Inference & summary (use n_epochs_display for correct total)
+    cfg_display = copy.deepcopy(cfg)
+    cfg_display.train.n_epochs = n_epochs_display
     run_inference(
-        model, swa_model, data, tfms, cfg,
+        model, swa_model, data, tfms, cfg_display,
         best_path, best_metrics,
         swa_va_loss, swa_va_acc, swa_path, swa_start_epoch,
         date, device, logger,
     )
+
+    # ─── Phase 2: Self-Training ───
+    if cfg.self_training.enabled:
+        self_train_phase(cfg, date, logger, device, best_path)
 
 
 if __name__ == "__main__":
