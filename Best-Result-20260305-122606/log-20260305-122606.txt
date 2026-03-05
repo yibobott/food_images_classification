@@ -1,0 +1,740 @@
+2026-03-05 12:26:06,083 - INFO - date=20260305-122606
+2026-03-05 12:26:06,083 - INFO - config=
+{
+  "augment": {
+    "color_jitter": {
+      "brightness": 0.25,
+      "contrast": 0.25,
+      "hue": 0.05,
+      "saturation": 0.25
+    },
+    "grayscale_p": 0.0,
+    "horizontal_flip_p": 0.5,
+    "random_erasing": {
+      "p": 0.25,
+      "scale": [
+        0.02,
+        0.2
+      ]
+    },
+    "random_resized_crop_ratio": [
+      0.9,
+      1.1
+    ],
+    "random_resized_crop_scale": [
+      0.7,
+      1.0
+    ],
+    "rotation_deg": 10
+  },
+  "data": {
+    "test": "food11/testing",
+    "train_labeled": "food11/training/labeled",
+    "train_unlabeled": "food11/training/unlabeled",
+    "valid": "food11/validation"
+  },
+  "dataloader": {
+    "batch_size": 16,
+    "num_workers": 8,
+    "pin_memory": true
+  },
+  "image": {
+    "img_size": 224,
+    "mean": [
+      0.485,
+      0.456,
+      0.406
+    ],
+    "std": [
+      0.229,
+      0.224,
+      0.225
+    ]
+  },
+  "model": {
+    "arch": "resnet18",
+    "drop_path_rate": 0.0
+  },
+  "output": {
+    "best_path": "best-model.pt",
+    "predict_path": "predict.csv"
+  },
+  "progressive_resize": {
+    "enabled": true,
+    "stage1_epochs": 100,
+    "stage1_size": 160
+  },
+  "seed": 42,
+  "self_training": {
+    "enabled": true,
+    "epochs": 150,
+    "threshold": 0.8
+  },
+  "semi": {
+    "ema": {
+      "decay": 0.995
+    },
+    "enabled": true,
+    "lambda_u": 0.4,
+    "lambda_u_ramp_epochs": 30,
+    "pseudo_threshold": 0.8,
+    "pseudo_threshold_end": -1.0,
+    "randaugment_magnitude": 9,
+    "randaugment_num_ops": 2,
+    "unsup_batch_size": 32,
+    "warmup_epochs": 8
+  },
+  "swa": {
+    "enabled": true,
+    "lr": 1e-05,
+    "start_epoch_ratio": 0.9
+  },
+  "train": {
+    "accum_steps": 4,
+    "dropout": 0.2,
+    "label_smoothing": 0.05,
+    "lr": 0.0007,
+    "max_lr": 0.003,
+    "mix": {
+      "alpha": 0.2,
+      "enabled": true,
+      "mode": "cutmix"
+    },
+    "n_epochs": 250,
+    "scheduler": "onecycle",
+    "use_amp": true,
+    "weight_decay": 0.0005
+  },
+  "tta": {
+    "enabled": true,
+    "num_augments": 10
+  }
+}
+2026-03-05 12:26:06,117 - INFO - Device: cuda
+2026-03-05 12:26:06,310 - INFO - Model: resnet18 | #params: 11.262 M
+2026-03-05 12:26:06,311 - INFO - === Progressive Resize Stage 1: img160 x 100 epochs ===
+2026-03-05 12:26:06,341 - INFO - train labeled: 2970
+2026-03-05 12:26:06,341 - INFO - train unlabeled: 6786
+2026-03-05 12:26:06,341 - INFO - valid: 660
+2026-03-05 12:26:06,341 - INFO - test: 3347
+2026-03-05 12:26:06,342 - INFO - Scheduler: OneCycleLR (max_lr=0.003, steps/epoch=47)
+2026-03-05 12:26:06,342 - INFO - AMP (Automatic Mixed Precision) enabled
+2026-03-05 12:26:38,859 - INFO - Epoch 01/100 | train loss 2.3231 acc 0.2022 mask 0.000 u 0.000 thr 0.800 | valid loss 2.4011 acc 0.0938 | lr 1.28e-04
+2026-03-05 12:26:38,920 - INFO -   -> saved best (EMA): 0.0938 (best-model-20260305-122606.pt)
+2026-03-05 12:26:50,786 - INFO - Epoch 02/100 | train loss 2.2131 acc 0.2618 mask 0.000 u 0.000 thr 0.800 | valid loss 2.4236 acc 0.1310 | lr 1.52e-04
+2026-03-05 12:26:50,849 - INFO -   -> saved best (EMA): 0.1310 (best-model-20260305-122606.pt)
+2026-03-05 12:27:02,737 - INFO - Epoch 03/100 | train loss 2.2018 acc 0.2884 mask 0.000 u 0.000 thr 0.800 | valid loss 2.4641 acc 0.1429 | lr 1.91e-04
+2026-03-05 12:27:02,813 - INFO -   -> saved best (EMA): 0.1429 (best-model-20260305-122606.pt)
+2026-03-05 12:27:14,143 - INFO - Epoch 04/100 | train loss 2.1813 acc 0.2834 mask 0.000 u 0.000 thr 0.800 | valid loss 2.5322 acc 0.1429 | lr 2.45e-04
+2026-03-05 12:27:25,987 - INFO - Epoch 05/100 | train loss 2.1683 acc 0.3112 mask 0.000 u 0.000 thr 0.800 | valid loss 2.5946 acc 0.1280 | lr 3.13e-04
+2026-03-05 12:27:37,679 - INFO - Epoch 06/100 | train loss 2.1171 acc 0.3413 mask 0.000 u 0.000 thr 0.800 | valid loss 2.6679 acc 0.1205 | lr 3.95e-04
+2026-03-05 12:27:49,236 - INFO - Epoch 07/100 | train loss 2.0877 acc 0.3397 mask 0.000 u 0.000 thr 0.800 | valid loss 2.7662 acc 0.1190 | lr 4.90e-04
+2026-03-05 12:28:00,374 - INFO - Epoch 08/100 | train loss 2.0783 acc 0.3583 mask 0.000 u 0.000 thr 0.800 | valid loss 2.8325 acc 0.1220 | lr 5.97e-04
+2026-03-05 12:28:45,564 - INFO - Epoch 09/100 | train loss 2.0398 acc 0.3876 mask 0.000 u 0.013 thr 0.800 | valid loss 2.8528 acc 0.1235 | lr 7.14e-04
+2026-03-05 12:29:14,780 - INFO - Epoch 10/100 | train loss 2.0210 acc 0.3949 mask 0.005 u 0.027 thr 0.800 | valid loss 2.7487 acc 0.1280 | lr 8.41e-04
+2026-03-05 12:29:44,006 - INFO - Epoch 11/100 | train loss 2.0426 acc 0.3935 mask 0.011 u 0.040 thr 0.800 | valid loss 2.6154 acc 0.1577 | lr 9.75e-04
+2026-03-05 12:29:44,072 - INFO -   -> saved best (EMA): 0.1577 (best-model-20260305-122606.pt)
+2026-03-05 12:30:13,288 - INFO - Epoch 12/100 | train loss 2.0560 acc 0.4056 mask 0.029 u 0.053 thr 0.800 | valid loss 2.4888 acc 0.1860 | lr 1.12e-03
+2026-03-05 12:30:13,359 - INFO -   -> saved best (EMA): 0.1860 (best-model-20260305-122606.pt)
+2026-03-05 12:30:42,609 - INFO - Epoch 13/100 | train loss 2.0269 acc 0.4278 mask 0.045 u 0.067 thr 0.800 | valid loss 2.3581 acc 0.2202 | lr 1.26e-03
+2026-03-05 12:30:42,672 - INFO -   -> saved best (EMA): 0.2202 (best-model-20260305-122606.pt)
+2026-03-05 12:31:11,887 - INFO - Epoch 14/100 | train loss 2.0359 acc 0.4343 mask 0.055 u 0.080 thr 0.800 | valid loss 2.1947 acc 0.2738 | lr 1.41e-03
+2026-03-05 12:31:11,948 - INFO -   -> saved best (EMA): 0.2738 (best-model-20260305-122606.pt)
+2026-03-05 12:31:41,146 - INFO - Epoch 15/100 | train loss 2.0454 acc 0.4428 mask 0.054 u 0.093 thr 0.800 | valid loss 1.9893 acc 0.3289 | lr 1.56e-03
+2026-03-05 12:31:41,207 - INFO -   -> saved best (EMA): 0.3289 (best-model-20260305-122606.pt)
+2026-03-05 12:32:10,445 - INFO - Epoch 16/100 | train loss 1.9904 acc 0.4583 mask 0.047 u 0.107 thr 0.800 | valid loss 1.8600 acc 0.4092 | lr 1.71e-03
+2026-03-05 12:32:10,508 - INFO -   -> saved best (EMA): 0.4092 (best-model-20260305-122606.pt)
+2026-03-05 12:32:39,790 - INFO - Epoch 17/100 | train loss 1.9725 acc 0.4673 mask 0.043 u 0.120 thr 0.800 | valid loss 1.7864 acc 0.4271 | lr 1.86e-03
+2026-03-05 12:32:39,852 - INFO -   -> saved best (EMA): 0.4271 (best-model-20260305-122606.pt)
+2026-03-05 12:33:09,054 - INFO - Epoch 18/100 | train loss 2.0180 acc 0.4533 mask 0.044 u 0.133 thr 0.800 | valid loss 1.7432 acc 0.4420 | lr 2.01e-03
+2026-03-05 12:33:09,116 - INFO -   -> saved best (EMA): 0.4420 (best-model-20260305-122606.pt)
+2026-03-05 12:33:38,396 - INFO - Epoch 19/100 | train loss 1.9833 acc 0.5098 mask 0.052 u 0.147 thr 0.800 | valid loss 1.6781 acc 0.4658 | lr 2.15e-03
+2026-03-05 12:33:38,458 - INFO -   -> saved best (EMA): 0.4658 (best-model-20260305-122606.pt)
+2026-03-05 12:34:07,690 - INFO - Epoch 20/100 | train loss 1.8954 acc 0.5099 mask 0.060 u 0.160 thr 0.800 | valid loss 1.6231 acc 0.4807 | lr 2.28e-03
+2026-03-05 12:34:07,751 - INFO -   -> saved best (EMA): 0.4807 (best-model-20260305-122606.pt)
+2026-03-05 12:34:36,926 - INFO - Epoch 21/100 | train loss 1.9219 acc 0.5112 mask 0.066 u 0.173 thr 0.800 | valid loss 1.5968 acc 0.4911 | lr 2.41e-03
+2026-03-05 12:34:36,987 - INFO -   -> saved best (EMA): 0.4911 (best-model-20260305-122606.pt)
+2026-03-05 12:35:06,216 - INFO - Epoch 22/100 | train loss 1.9235 acc 0.5323 mask 0.071 u 0.187 thr 0.800 | valid loss 1.5549 acc 0.5074 | lr 2.53e-03
+2026-03-05 12:35:06,280 - INFO -   -> saved best (EMA): 0.5074 (best-model-20260305-122606.pt)
+2026-03-05 12:35:35,553 - INFO - Epoch 23/100 | train loss 1.8597 acc 0.5444 mask 0.081 u 0.200 thr 0.800 | valid loss 1.5120 acc 0.5298 | lr 2.63e-03
+2026-03-05 12:35:35,619 - INFO -   -> saved best (EMA): 0.5298 (best-model-20260305-122606.pt)
+2026-03-05 12:36:04,901 - INFO - Epoch 24/100 | train loss 1.8742 acc 0.5583 mask 0.094 u 0.213 thr 0.800 | valid loss 1.4692 acc 0.5402 | lr 2.73e-03
+2026-03-05 12:36:04,963 - INFO -   -> saved best (EMA): 0.5402 (best-model-20260305-122606.pt)
+2026-03-05 12:36:34,207 - INFO - Epoch 25/100 | train loss 1.8319 acc 0.5796 mask 0.104 u 0.227 thr 0.800 | valid loss 1.4412 acc 0.5402 | lr 2.81e-03
+2026-03-05 12:37:03,480 - INFO - Epoch 26/100 | train loss 1.7938 acc 0.5783 mask 0.122 u 0.240 thr 0.800 | valid loss 1.4029 acc 0.5610 | lr 2.88e-03
+2026-03-05 12:37:03,543 - INFO -   -> saved best (EMA): 0.5610 (best-model-20260305-122606.pt)
+2026-03-05 12:37:32,816 - INFO - Epoch 27/100 | train loss 1.7784 acc 0.5938 mask 0.139 u 0.253 thr 0.800 | valid loss 1.3692 acc 0.5714 | lr 2.93e-03
+2026-03-05 12:37:32,878 - INFO -   -> saved best (EMA): 0.5714 (best-model-20260305-122606.pt)
+2026-03-05 12:38:02,120 - INFO - Epoch 28/100 | train loss 1.7444 acc 0.6040 mask 0.153 u 0.267 thr 0.800 | valid loss 1.3474 acc 0.5938 | lr 2.97e-03
+2026-03-05 12:38:02,181 - INFO -   -> saved best (EMA): 0.5938 (best-model-20260305-122606.pt)
+2026-03-05 12:38:31,435 - INFO - Epoch 29/100 | train loss 1.7854 acc 0.6212 mask 0.164 u 0.280 thr 0.800 | valid loss 1.3209 acc 0.6146 | lr 2.99e-03
+2026-03-05 12:38:31,501 - INFO -   -> saved best (EMA): 0.6146 (best-model-20260305-122606.pt)
+2026-03-05 12:39:00,718 - INFO - Epoch 30/100 | train loss 1.7421 acc 0.6294 mask 0.180 u 0.293 thr 0.800 | valid loss 1.2984 acc 0.6220 | lr 3.00e-03
+2026-03-05 12:39:00,778 - INFO -   -> saved best (EMA): 0.6220 (best-model-20260305-122606.pt)
+2026-03-05 12:39:30,103 - INFO - Epoch 31/100 | train loss 1.6813 acc 0.6435 mask 0.184 u 0.307 thr 0.800 | valid loss 1.2619 acc 0.6354 | lr 3.00e-03
+2026-03-05 12:39:30,165 - INFO -   -> saved best (EMA): 0.6354 (best-model-20260305-122606.pt)
+2026-03-05 12:39:59,434 - INFO - Epoch 32/100 | train loss 1.6840 acc 0.6530 mask 0.197 u 0.320 thr 0.800 | valid loss 1.2419 acc 0.6458 | lr 2.99e-03
+2026-03-05 12:39:59,496 - INFO -   -> saved best (EMA): 0.6458 (best-model-20260305-122606.pt)
+2026-03-05 12:40:28,708 - INFO - Epoch 33/100 | train loss 1.6831 acc 0.6702 mask 0.208 u 0.333 thr 0.800 | valid loss 1.2178 acc 0.6548 | lr 2.99e-03
+2026-03-05 12:40:28,771 - INFO -   -> saved best (EMA): 0.6548 (best-model-20260305-122606.pt)
+2026-03-05 12:40:58,077 - INFO - Epoch 34/100 | train loss 1.7191 acc 0.6624 mask 0.228 u 0.347 thr 0.800 | valid loss 1.1971 acc 0.6577 | lr 2.98e-03
+2026-03-05 12:40:58,139 - INFO -   -> saved best (EMA): 0.6577 (best-model-20260305-122606.pt)
+2026-03-05 12:41:27,437 - INFO - Epoch 35/100 | train loss 1.6607 acc 0.6882 mask 0.236 u 0.360 thr 0.800 | valid loss 1.1806 acc 0.6696 | lr 2.96e-03
+2026-03-05 12:41:27,500 - INFO -   -> saved best (EMA): 0.6696 (best-model-20260305-122606.pt)
+2026-03-05 12:41:56,818 - INFO - Epoch 36/100 | train loss 1.6247 acc 0.6814 mask 0.252 u 0.373 thr 0.800 | valid loss 1.1586 acc 0.6801 | lr 2.95e-03
+2026-03-05 12:41:56,880 - INFO -   -> saved best (EMA): 0.6801 (best-model-20260305-122606.pt)
+2026-03-05 12:42:26,028 - INFO - Epoch 37/100 | train loss 1.6503 acc 0.7003 mask 0.256 u 0.387 thr 0.800 | valid loss 1.1392 acc 0.6845 | lr 2.93e-03
+2026-03-05 12:42:26,089 - INFO -   -> saved best (EMA): 0.6845 (best-model-20260305-122606.pt)
+2026-03-05 12:42:55,227 - INFO - Epoch 38/100 | train loss 1.5924 acc 0.7194 mask 0.276 u 0.400 thr 0.800 | valid loss 1.1188 acc 0.6979 | lr 2.90e-03
+2026-03-05 12:42:55,288 - INFO -   -> saved best (EMA): 0.6979 (best-model-20260305-122606.pt)
+2026-03-05 12:43:24,670 - INFO - Epoch 39/100 | train loss 1.6754 acc 0.6996 mask 0.285 u 0.400 thr 0.800 | valid loss 1.1065 acc 0.7009 | lr 2.88e-03
+2026-03-05 12:43:24,732 - INFO -   -> saved best (EMA): 0.7009 (best-model-20260305-122606.pt)
+2026-03-05 12:43:54,021 - INFO - Epoch 40/100 | train loss 1.6119 acc 0.7196 mask 0.296 u 0.400 thr 0.800 | valid loss 1.0882 acc 0.7009 | lr 2.85e-03
+2026-03-05 12:44:23,023 - INFO - Epoch 41/100 | train loss 1.5553 acc 0.7192 mask 0.308 u 0.400 thr 0.800 | valid loss 1.0715 acc 0.7009 | lr 2.82e-03
+2026-03-05 12:44:52,227 - INFO - Epoch 42/100 | train loss 1.5897 acc 0.7442 mask 0.320 u 0.400 thr 0.800 | valid loss 1.0534 acc 0.7054 | lr 2.79e-03
+2026-03-05 12:44:52,288 - INFO -   -> saved best (EMA): 0.7054 (best-model-20260305-122606.pt)
+2026-03-05 12:45:21,462 - INFO - Epoch 43/100 | train loss 1.6077 acc 0.7382 mask 0.329 u 0.400 thr 0.800 | valid loss 1.0421 acc 0.7128 | lr 2.75e-03
+2026-03-05 12:45:21,523 - INFO -   -> saved best (EMA): 0.7128 (best-model-20260305-122606.pt)
+2026-03-05 12:45:50,785 - INFO - Epoch 44/100 | train loss 1.5874 acc 0.7407 mask 0.332 u 0.400 thr 0.800 | valid loss 1.0377 acc 0.7128 | lr 2.71e-03
+2026-03-05 12:46:19,986 - INFO - Epoch 45/100 | train loss 1.5438 acc 0.7598 mask 0.340 u 0.400 thr 0.800 | valid loss 1.0274 acc 0.7158 | lr 2.67e-03
+2026-03-05 12:46:20,057 - INFO -   -> saved best (EMA): 0.7158 (best-model-20260305-122606.pt)
+2026-03-05 12:46:49,448 - INFO - Epoch 46/100 | train loss 1.4867 acc 0.7686 mask 0.350 u 0.400 thr 0.800 | valid loss 1.0134 acc 0.7247 | lr 2.63e-03
+2026-03-05 12:46:49,511 - INFO -   -> saved best (EMA): 0.7247 (best-model-20260305-122606.pt)
+2026-03-05 12:47:18,691 - INFO - Epoch 47/100 | train loss 1.5181 acc 0.7657 mask 0.357 u 0.400 thr 0.800 | valid loss 1.0024 acc 0.7307 | lr 2.58e-03
+2026-03-05 12:47:18,751 - INFO -   -> saved best (EMA): 0.7307 (best-model-20260305-122606.pt)
+2026-03-05 12:47:47,827 - INFO - Epoch 48/100 | train loss 1.5094 acc 0.7731 mask 0.369 u 0.400 thr 0.800 | valid loss 0.9893 acc 0.7366 | lr 2.54e-03
+2026-03-05 12:47:47,888 - INFO -   -> saved best (EMA): 0.7366 (best-model-20260305-122606.pt)
+2026-03-05 12:48:17,060 - INFO - Epoch 49/100 | train loss 1.4608 acc 0.7870 mask 0.377 u 0.400 thr 0.800 | valid loss 0.9800 acc 0.7485 | lr 2.49e-03
+2026-03-05 12:48:17,126 - INFO -   -> saved best (EMA): 0.7485 (best-model-20260305-122606.pt)
+2026-03-05 12:48:46,376 - INFO - Epoch 50/100 | train loss 1.4958 acc 0.7770 mask 0.384 u 0.400 thr 0.800 | valid loss 0.9750 acc 0.7440 | lr 2.43e-03
+2026-03-05 12:49:15,606 - INFO - Epoch 51/100 | train loss 1.4968 acc 0.8053 mask 0.389 u 0.400 thr 0.800 | valid loss 0.9702 acc 0.7455 | lr 2.38e-03
+2026-03-05 12:49:44,820 - INFO - Epoch 52/100 | train loss 1.4183 acc 0.7970 mask 0.398 u 0.400 thr 0.800 | valid loss 0.9679 acc 0.7470 | lr 2.33e-03
+2026-03-05 12:50:14,021 - INFO - Epoch 53/100 | train loss 1.3889 acc 0.8116 mask 0.409 u 0.400 thr 0.800 | valid loss 0.9583 acc 0.7515 | lr 2.27e-03
+2026-03-05 12:50:14,082 - INFO -   -> saved best (EMA): 0.7515 (best-model-20260305-122606.pt)
+2026-03-05 12:50:43,262 - INFO - Epoch 54/100 | train loss 1.3809 acc 0.8087 mask 0.418 u 0.400 thr 0.800 | valid loss 0.9493 acc 0.7604 | lr 2.21e-03
+2026-03-05 12:50:43,325 - INFO -   -> saved best (EMA): 0.7604 (best-model-20260305-122606.pt)
+2026-03-05 12:51:12,580 - INFO - Epoch 55/100 | train loss 1.3906 acc 0.8280 mask 0.426 u 0.400 thr 0.800 | valid loss 0.9420 acc 0.7649 | lr 2.15e-03
+2026-03-05 12:51:12,643 - INFO -   -> saved best (EMA): 0.7649 (best-model-20260305-122606.pt)
+2026-03-05 12:51:41,896 - INFO - Epoch 56/100 | train loss 1.3753 acc 0.8261 mask 0.432 u 0.400 thr 0.800 | valid loss 0.9358 acc 0.7679 | lr 2.09e-03
+2026-03-05 12:51:41,958 - INFO -   -> saved best (EMA): 0.7679 (best-model-20260305-122606.pt)
+2026-03-05 12:52:11,211 - INFO - Epoch 57/100 | train loss 1.3366 acc 0.8370 mask 0.442 u 0.400 thr 0.800 | valid loss 0.9314 acc 0.7753 | lr 2.03e-03
+2026-03-05 12:52:11,275 - INFO -   -> saved best (EMA): 0.7753 (best-model-20260305-122606.pt)
+2026-03-05 12:52:40,468 - INFO - Epoch 58/100 | train loss 1.3873 acc 0.8284 mask 0.449 u 0.400 thr 0.800 | valid loss 0.9244 acc 0.7783 | lr 1.96e-03
+2026-03-05 12:52:40,529 - INFO -   -> saved best (EMA): 0.7783 (best-model-20260305-122606.pt)
+2026-03-05 12:53:09,809 - INFO - Epoch 59/100 | train loss 1.3468 acc 0.8351 mask 0.460 u 0.400 thr 0.800 | valid loss 0.9200 acc 0.7783 | lr 1.90e-03
+2026-03-05 12:53:39,045 - INFO - Epoch 60/100 | train loss 1.3622 acc 0.8490 mask 0.466 u 0.400 thr 0.800 | valid loss 0.9194 acc 0.7812 | lr 1.83e-03
+2026-03-05 12:53:39,106 - INFO -   -> saved best (EMA): 0.7812 (best-model-20260305-122606.pt)
+2026-03-05 12:54:08,290 - INFO - Epoch 61/100 | train loss 1.3969 acc 0.8440 mask 0.466 u 0.400 thr 0.800 | valid loss 0.9149 acc 0.7798 | lr 1.77e-03
+2026-03-05 12:54:37,490 - INFO - Epoch 62/100 | train loss 1.3614 acc 0.8551 mask 0.478 u 0.400 thr 0.800 | valid loss 0.9105 acc 0.7798 | lr 1.70e-03
+2026-03-05 12:55:06,661 - INFO - Epoch 63/100 | train loss 1.3394 acc 0.8578 mask 0.484 u 0.400 thr 0.800 | valid loss 0.9059 acc 0.7812 | lr 1.63e-03
+2026-03-05 12:55:35,832 - INFO - Epoch 64/100 | train loss 1.3110 acc 0.8697 mask 0.491 u 0.400 thr 0.800 | valid loss 0.8967 acc 0.7827 | lr 1.57e-03
+2026-03-05 12:55:35,894 - INFO -   -> saved best (EMA): 0.7827 (best-model-20260305-122606.pt)
+2026-03-05 12:56:05,059 - INFO - Epoch 65/100 | train loss 1.3236 acc 0.8782 mask 0.492 u 0.400 thr 0.800 | valid loss 0.8908 acc 0.7917 | lr 1.50e-03
+2026-03-05 12:56:05,122 - INFO -   -> saved best (EMA): 0.7917 (best-model-20260305-122606.pt)
+2026-03-05 12:56:34,376 - INFO - Epoch 66/100 | train loss 1.2902 acc 0.8842 mask 0.497 u 0.400 thr 0.800 | valid loss 0.8877 acc 0.7946 | lr 1.43e-03
+2026-03-05 12:56:34,439 - INFO -   -> saved best (EMA): 0.7946 (best-model-20260305-122606.pt)
+2026-03-05 12:57:03,401 - INFO - Epoch 67/100 | train loss 1.2611 acc 0.8915 mask 0.506 u 0.400 thr 0.800 | valid loss 0.8867 acc 0.7917 | lr 1.36e-03
+2026-03-05 12:57:32,639 - INFO - Epoch 68/100 | train loss 1.2970 acc 0.8912 mask 0.513 u 0.400 thr 0.800 | valid loss 0.8817 acc 0.7887 | lr 1.30e-03
+2026-03-05 12:58:01,846 - INFO - Epoch 69/100 | train loss 1.2443 acc 0.9025 mask 0.521 u 0.400 thr 0.800 | valid loss 0.8776 acc 0.7946 | lr 1.23e-03
+2026-03-05 12:58:31,044 - INFO - Epoch 70/100 | train loss 1.2500 acc 0.9022 mask 0.531 u 0.400 thr 0.800 | valid loss 0.8732 acc 0.7991 | lr 1.16e-03
+2026-03-05 12:58:31,105 - INFO -   -> saved best (EMA): 0.7991 (best-model-20260305-122606.pt)
+2026-03-05 12:59:00,287 - INFO - Epoch 71/100 | train loss 1.2750 acc 0.9130 mask 0.533 u 0.400 thr 0.800 | valid loss 0.8708 acc 0.7946 | lr 1.10e-03
+2026-03-05 12:59:29,420 - INFO - Epoch 72/100 | train loss 1.2716 acc 0.9167 mask 0.535 u 0.400 thr 0.800 | valid loss 0.8625 acc 0.7961 | lr 1.04e-03
+2026-03-05 12:59:58,666 - INFO - Epoch 73/100 | train loss 1.2137 acc 0.9192 mask 0.548 u 0.400 thr 0.800 | valid loss 0.8575 acc 0.7976 | lr 9.72e-04
+2026-03-05 13:00:27,865 - INFO - Epoch 74/100 | train loss 1.1827 acc 0.9274 mask 0.548 u 0.400 thr 0.800 | valid loss 0.8546 acc 0.7961 | lr 9.09e-04
+2026-03-05 13:00:57,052 - INFO - Epoch 75/100 | train loss 1.1538 acc 0.9315 mask 0.557 u 0.400 thr 0.800 | valid loss 0.8532 acc 0.7991 | lr 8.48e-04
+2026-03-05 13:01:26,251 - INFO - Epoch 76/100 | train loss 1.1583 acc 0.9378 mask 0.559 u 0.400 thr 0.800 | valid loss 0.8473 acc 0.8036 | lr 7.88e-04
+2026-03-05 13:01:26,314 - INFO -   -> saved best (EMA): 0.8036 (best-model-20260305-122606.pt)
+2026-03-05 13:01:55,593 - INFO - Epoch 77/100 | train loss 1.2095 acc 0.9394 mask 0.569 u 0.400 thr 0.800 | valid loss 0.8426 acc 0.8021 | lr 7.29e-04
+2026-03-05 13:02:24,833 - INFO - Epoch 78/100 | train loss 1.1521 acc 0.9339 mask 0.571 u 0.400 thr 0.800 | valid loss 0.8403 acc 0.8065 | lr 6.72e-04
+2026-03-05 13:02:24,895 - INFO -   -> saved best (EMA): 0.8065 (best-model-20260305-122606.pt)
+2026-03-05 13:02:54,096 - INFO - Epoch 79/100 | train loss 1.1971 acc 0.9409 mask 0.578 u 0.400 thr 0.800 | valid loss 0.8404 acc 0.8036 | lr 6.17e-04
+2026-03-05 13:03:23,270 - INFO - Epoch 80/100 | train loss 1.1637 acc 0.9502 mask 0.584 u 0.400 thr 0.800 | valid loss 0.8399 acc 0.8199 | lr 5.64e-04
+2026-03-05 13:03:23,331 - INFO -   -> saved best (EMA): 0.8199 (best-model-20260305-122606.pt)
+2026-03-05 13:03:52,593 - INFO - Epoch 81/100 | train loss 1.1270 acc 0.9517 mask 0.587 u 0.400 thr 0.800 | valid loss 0.8398 acc 0.8170 | lr 5.12e-04
+2026-03-05 13:04:21,825 - INFO - Epoch 82/100 | train loss 1.0975 acc 0.9554 mask 0.587 u 0.400 thr 0.800 | valid loss 0.8360 acc 0.8140 | lr 4.62e-04
+2026-03-05 13:04:51,050 - INFO - Epoch 83/100 | train loss 1.1805 acc 0.9550 mask 0.599 u 0.400 thr 0.800 | valid loss 0.8345 acc 0.8140 | lr 4.15e-04
+2026-03-05 13:05:20,240 - INFO - Epoch 84/100 | train loss 1.1390 acc 0.9561 mask 0.597 u 0.400 thr 0.800 | valid loss 0.8326 acc 0.8140 | lr 3.69e-04
+2026-03-05 13:05:49,456 - INFO - Epoch 85/100 | train loss 1.0922 acc 0.9634 mask 0.601 u 0.400 thr 0.800 | valid loss 0.8304 acc 0.8155 | lr 3.26e-04
+2026-03-05 13:06:18,642 - INFO - Epoch 86/100 | train loss 1.1111 acc 0.9701 mask 0.605 u 0.400 thr 0.800 | valid loss 0.8299 acc 0.8259 | lr 2.86e-04
+2026-03-05 13:06:18,703 - INFO -   -> saved best (EMA): 0.8259 (best-model-20260305-122606.pt)
+2026-03-05 13:06:47,884 - INFO - Epoch 87/100 | train loss 1.0835 acc 0.9667 mask 0.609 u 0.400 thr 0.800 | valid loss 0.8286 acc 0.8214 | lr 2.47e-04
+2026-03-05 13:07:17,073 - INFO - Epoch 88/100 | train loss 1.0426 acc 0.9704 mask 0.611 u 0.400 thr 0.800 | valid loss 0.8292 acc 0.8214 | lr 2.12e-04
+2026-03-05 13:07:46,137 - INFO - Epoch 89/100 | train loss 1.0978 acc 0.9665 mask 0.611 u 0.400 thr 0.800 | valid loss 0.8280 acc 0.8170 | lr 1.78e-04
+2026-03-05 13:08:15,327 - INFO - Epoch 90/100 | train loss 1.0521 acc 0.9696 mask 0.613 u 0.400 thr 0.800 | valid loss 0.8274 acc 0.8185 | lr 1.48e-04
+2026-03-05 13:08:44,517 - INFO - Epoch 91/100 | train loss 1.0736 acc 0.9684 mask 0.618 u 0.400 thr 0.800 | valid loss 0.8281 acc 0.8214 | lr 1.20e-04
+2026-03-05 13:09:13,747 - INFO - Epoch 92/100 | train loss 1.0892 acc 0.9738 mask 0.622 u 0.400 thr 0.800 | valid loss 0.8278 acc 0.8199 | lr 9.52e-05
+2026-03-05 13:09:42,903 - INFO - Epoch 93/100 | train loss 1.0986 acc 0.9716 mask 0.622 u 0.400 thr 0.800 | valid loss 0.8265 acc 0.8229 | lr 7.30e-05
+2026-03-05 13:10:12,147 - INFO - Epoch 94/100 | train loss 1.0847 acc 0.9718 mask 0.623 u 0.400 thr 0.800 | valid loss 0.8249 acc 0.8244 | lr 5.37e-05
+2026-03-05 13:10:41,366 - INFO - Epoch 95/100 | train loss 1.0520 acc 0.9758 mask 0.626 u 0.400 thr 0.800 | valid loss 0.8229 acc 0.8199 | lr 3.73e-05
+2026-03-05 13:11:10,642 - INFO - Epoch 96/100 | train loss 1.0186 acc 0.9729 mask 0.626 u 0.400 thr 0.800 | valid loss 0.8214 acc 0.8229 | lr 2.39e-05
+2026-03-05 13:11:39,609 - INFO - Epoch 97/100 | train loss 1.1037 acc 0.9687 mask 0.630 u 0.400 thr 0.800 | valid loss 0.8209 acc 0.8214 | lr 1.34e-05
+2026-03-05 13:12:08,835 - INFO - Epoch 98/100 | train loss 1.0271 acc 0.9758 mask 0.628 u 0.400 thr 0.800 | valid loss 0.8204 acc 0.8199 | lr 5.92e-06
+2026-03-05 13:12:38,046 - INFO - Epoch 99/100 | train loss 1.0653 acc 0.9765 mask 0.630 u 0.400 thr 0.800 | valid loss 0.8202 acc 0.8185 | lr 1.46e-06
+2026-03-05 13:13:07,140 - INFO - Epoch 100/100 | train loss 1.0992 acc 0.9738 mask 0.633 u 0.400 thr 0.800 | valid loss 0.8199 acc 0.8185 | lr 1.27e-08
+2026-03-05 13:13:09,435 - INFO - === Progressive Resize Stage 2: img224 x 150 epochs ===
+2026-03-05 13:13:09,452 - INFO - train labeled: 2970
+2026-03-05 13:13:09,453 - INFO - train unlabeled: 6786
+2026-03-05 13:13:09,453 - INFO - valid: 660
+2026-03-05 13:13:09,453 - INFO - test: 3347
+2026-03-05 13:13:09,453 - INFO - Scheduler: OneCycleLR (max_lr=0.003, steps/epoch=47)
+2026-03-05 13:13:09,454 - INFO - AMP (Automatic Mixed Precision) enabled
+2026-03-05 13:13:09,464 - INFO - SWA enabled: start averaging from epoch 135, swa_lr=1.0e-05
+2026-03-05 13:13:50,259 - INFO - Epoch 101/250 | train loss 1.1085 acc 0.9427 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8343 acc 0.7872 | lr 1.24e-04
+2026-03-05 13:13:50,323 - INFO -   -> saved best (EMA): 0.7872 (best-model-20260305-122606.pt)
+2026-03-05 13:14:10,866 - INFO - Epoch 102/250 | train loss 1.1128 acc 0.9516 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8194 acc 0.7991 | lr 1.34e-04
+2026-03-05 13:14:10,927 - INFO -   -> saved best (EMA): 0.7991 (best-model-20260305-122606.pt)
+2026-03-05 13:14:31,594 - INFO - Epoch 103/250 | train loss 1.0427 acc 0.9524 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8109 acc 0.8125 | lr 1.51e-04
+2026-03-05 13:14:31,656 - INFO -   -> saved best (EMA): 0.8125 (best-model-20260305-122606.pt)
+2026-03-05 13:14:52,269 - INFO - Epoch 104/250 | train loss 0.9883 acc 0.9550 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8040 acc 0.8125 | lr 1.76e-04
+2026-03-05 13:15:12,845 - INFO - Epoch 105/250 | train loss 1.0742 acc 0.9585 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8004 acc 0.8155 | lr 2.07e-04
+2026-03-05 13:15:12,906 - INFO -   -> saved best (EMA): 0.8155 (best-model-20260305-122606.pt)
+2026-03-05 13:15:33,475 - INFO - Epoch 106/250 | train loss 1.0344 acc 0.9589 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7985 acc 0.8110 | lr 2.45e-04
+2026-03-05 13:15:53,882 - INFO - Epoch 107/250 | train loss 1.0699 acc 0.9628 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7996 acc 0.8080 | lr 2.89e-04
+2026-03-05 13:16:14,459 - INFO - Epoch 108/250 | train loss 1.0391 acc 0.9664 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8010 acc 0.8140 | lr 3.39e-04
+2026-03-05 13:17:27,552 - INFO - Epoch 109/250 | train loss 1.0216 acc 0.9674 mask 0.560 u 0.013 thr 0.800 | valid loss 0.7993 acc 0.8125 | lr 3.95e-04
+2026-03-05 13:18:24,225 - INFO - Epoch 110/250 | train loss 1.0135 acc 0.9595 mask 0.580 u 0.027 thr 0.800 | valid loss 0.7984 acc 0.8155 | lr 4.57e-04
+2026-03-05 13:19:20,946 - INFO - Epoch 111/250 | train loss 1.0495 acc 0.9608 mask 0.594 u 0.040 thr 0.800 | valid loss 0.7984 acc 0.8140 | lr 5.25e-04
+2026-03-05 13:20:17,656 - INFO - Epoch 112/250 | train loss 1.0636 acc 0.9595 mask 0.605 u 0.053 thr 0.800 | valid loss 0.7981 acc 0.8155 | lr 5.97e-04
+2026-03-05 13:21:14,363 - INFO - Epoch 113/250 | train loss 1.0699 acc 0.9615 mask 0.608 u 0.067 thr 0.800 | valid loss 0.7964 acc 0.8199 | lr 6.74e-04
+2026-03-05 13:21:14,426 - INFO -   -> saved best (EMA): 0.8199 (best-model-20260305-122606.pt)
+2026-03-05 13:22:11,071 - INFO - Epoch 114/250 | train loss 1.0954 acc 0.9571 mask 0.620 u 0.080 thr 0.800 | valid loss 0.7941 acc 0.8125 | lr 7.55e-04
+2026-03-05 13:23:07,705 - INFO - Epoch 115/250 | train loss 1.0616 acc 0.9517 mask 0.619 u 0.093 thr 0.800 | valid loss 0.7949 acc 0.8140 | lr 8.41e-04
+2026-03-05 13:24:04,282 - INFO - Epoch 116/250 | train loss 1.1432 acc 0.9548 mask 0.622 u 0.107 thr 0.800 | valid loss 0.7987 acc 0.8199 | lr 9.29e-04
+2026-03-05 13:25:00,968 - INFO - Epoch 117/250 | train loss 1.1203 acc 0.9474 mask 0.621 u 0.120 thr 0.800 | valid loss 0.7990 acc 0.8155 | lr 1.02e-03
+2026-03-05 13:25:57,667 - INFO - Epoch 118/250 | train loss 1.0929 acc 0.9415 mask 0.626 u 0.133 thr 0.800 | valid loss 0.7972 acc 0.8110 | lr 1.12e-03
+2026-03-05 13:26:54,293 - INFO - Epoch 119/250 | train loss 1.0974 acc 0.9474 mask 0.625 u 0.147 thr 0.800 | valid loss 0.7941 acc 0.8214 | lr 1.21e-03
+2026-03-05 13:26:54,355 - INFO -   -> saved best (EMA): 0.8214 (best-model-20260305-122606.pt)
+2026-03-05 13:27:50,987 - INFO - Epoch 120/250 | train loss 1.0964 acc 0.9405 mask 0.627 u 0.160 thr 0.800 | valid loss 0.7870 acc 0.8229 | lr 1.31e-03
+2026-03-05 13:27:51,049 - INFO -   -> saved best (EMA): 0.8229 (best-model-20260305-122606.pt)
+2026-03-05 13:28:47,743 - INFO - Epoch 121/250 | train loss 1.1531 acc 0.9326 mask 0.633 u 0.173 thr 0.800 | valid loss 0.7825 acc 0.8214 | lr 1.41e-03
+2026-03-05 13:29:44,396 - INFO - Epoch 122/250 | train loss 1.1350 acc 0.9329 mask 0.636 u 0.187 thr 0.800 | valid loss 0.7741 acc 0.8244 | lr 1.51e-03
+2026-03-05 13:29:44,458 - INFO -   -> saved best (EMA): 0.8244 (best-model-20260305-122606.pt)
+2026-03-05 13:30:41,081 - INFO - Epoch 123/250 | train loss 1.2176 acc 0.9262 mask 0.631 u 0.200 thr 0.800 | valid loss 0.7719 acc 0.8274 | lr 1.61e-03
+2026-03-05 13:30:41,142 - INFO -   -> saved best (EMA): 0.8274 (best-model-20260305-122606.pt)
+2026-03-05 13:31:37,842 - INFO - Epoch 124/250 | train loss 1.2047 acc 0.9222 mask 0.636 u 0.213 thr 0.800 | valid loss 0.7716 acc 0.8229 | lr 1.71e-03
+2026-03-05 13:32:34,456 - INFO - Epoch 125/250 | train loss 1.2181 acc 0.9195 mask 0.635 u 0.227 thr 0.800 | valid loss 0.7782 acc 0.8229 | lr 1.81e-03
+2026-03-05 13:33:31,124 - INFO - Epoch 126/250 | train loss 1.1293 acc 0.9203 mask 0.632 u 0.240 thr 0.800 | valid loss 0.7834 acc 0.8244 | lr 1.91e-03
+2026-03-05 13:34:27,793 - INFO - Epoch 127/250 | train loss 1.2106 acc 0.9157 mask 0.635 u 0.253 thr 0.800 | valid loss 0.7789 acc 0.8229 | lr 2.01e-03
+2026-03-05 13:35:24,379 - INFO - Epoch 128/250 | train loss 1.1978 acc 0.9190 mask 0.633 u 0.267 thr 0.800 | valid loss 0.7742 acc 0.8244 | lr 2.10e-03
+2026-03-05 13:36:20,922 - INFO - Epoch 129/250 | train loss 1.1866 acc 0.9202 mask 0.636 u 0.280 thr 0.800 | valid loss 0.7667 acc 0.8393 | lr 2.19e-03
+2026-03-05 13:36:20,983 - INFO -   -> saved best (EMA): 0.8393 (best-model-20260305-122606.pt)
+2026-03-05 13:37:17,631 - INFO - Epoch 130/250 | train loss 1.1870 acc 0.9116 mask 0.641 u 0.293 thr 0.800 | valid loss 0.7648 acc 0.8393 | lr 2.28e-03
+2026-03-05 13:38:14,300 - INFO - Epoch 131/250 | train loss 1.2097 acc 0.9186 mask 0.638 u 0.307 thr 0.800 | valid loss 0.7553 acc 0.8467 | lr 2.37e-03
+2026-03-05 13:38:14,361 - INFO -   -> saved best (EMA): 0.8467 (best-model-20260305-122606.pt)
+2026-03-05 13:39:11,027 - INFO - Epoch 132/250 | train loss 1.1706 acc 0.9210 mask 0.647 u 0.320 thr 0.800 | valid loss 0.7513 acc 0.8467 | lr 2.45e-03
+2026-03-05 13:40:07,683 - INFO - Epoch 133/250 | train loss 1.1915 acc 0.9247 mask 0.647 u 0.333 thr 0.800 | valid loss 0.7523 acc 0.8452 | lr 2.52e-03
+2026-03-05 13:41:04,371 - INFO - Epoch 134/250 | train loss 1.2214 acc 0.9143 mask 0.647 u 0.347 thr 0.800 | valid loss 0.7512 acc 0.8482 | lr 2.60e-03
+2026-03-05 13:41:04,433 - INFO -   -> saved best (EMA): 0.8482 (best-model-20260305-122606.pt)
+2026-03-05 13:42:01,099 - INFO - Epoch 135/250 | train loss 1.1853 acc 0.9284 mask 0.649 u 0.360 thr 0.800 | valid loss 0.7514 acc 0.8497 | lr 2.66e-03
+2026-03-05 13:42:01,160 - INFO -   -> saved best (EMA): 0.8497 (best-model-20260305-122606.pt)
+2026-03-05 13:42:57,800 - INFO - Epoch 136/250 | train loss 1.2656 acc 0.9015 mask 0.656 u 0.373 thr 0.800 | valid loss 0.7493 acc 0.8497 | lr 2.73e-03
+2026-03-05 13:43:54,443 - INFO - Epoch 137/250 | train loss 1.2380 acc 0.9030 mask 0.657 u 0.387 thr 0.800 | valid loss 0.7450 acc 0.8497 | lr 2.78e-03
+2026-03-05 13:44:51,044 - INFO - Epoch 138/250 | train loss 1.2483 acc 0.9190 mask 0.663 u 0.400 thr 0.800 | valid loss 0.7387 acc 0.8542 | lr 2.83e-03
+2026-03-05 13:44:51,107 - INFO -   -> saved best (EMA): 0.8542 (best-model-20260305-122606.pt)
+2026-03-05 13:45:47,712 - INFO - Epoch 139/250 | train loss 1.2592 acc 0.9161 mask 0.657 u 0.400 thr 0.800 | valid loss 0.7392 acc 0.8557 | lr 2.88e-03
+2026-03-05 13:45:47,777 - INFO -   -> saved best (EMA): 0.8557 (best-model-20260305-122606.pt)
+2026-03-05 13:46:44,463 - INFO - Epoch 140/250 | train loss 1.2352 acc 0.9296 mask 0.662 u 0.400 thr 0.800 | valid loss 0.7377 acc 0.8571 | lr 2.91e-03
+2026-03-05 13:46:44,526 - INFO -   -> saved best (EMA): 0.8571 (best-model-20260305-122606.pt)
+2026-03-05 13:47:41,181 - INFO - Epoch 141/250 | train loss 1.2363 acc 0.9148 mask 0.663 u 0.400 thr 0.800 | valid loss 0.7361 acc 0.8542 | lr 2.94e-03
+2026-03-05 13:48:37,816 - INFO - Epoch 142/250 | train loss 1.1309 acc 0.9284 mask 0.662 u 0.400 thr 0.800 | valid loss 0.7390 acc 0.8557 | lr 2.97e-03
+2026-03-05 13:49:34,504 - INFO - Epoch 143/250 | train loss 1.2390 acc 0.9267 mask 0.670 u 0.400 thr 0.800 | valid loss 0.7291 acc 0.8631 | lr 2.99e-03
+2026-03-05 13:49:34,566 - INFO -   -> saved best (EMA): 0.8631 (best-model-20260305-122606.pt)
+2026-03-05 13:50:31,247 - INFO - Epoch 144/250 | train loss 1.1924 acc 0.9362 mask 0.672 u 0.400 thr 0.800 | valid loss 0.7272 acc 0.8616 | lr 3.00e-03
+2026-03-05 13:51:27,950 - INFO - Epoch 145/250 | train loss 1.1690 acc 0.9331 mask 0.677 u 0.400 thr 0.800 | valid loss 0.7239 acc 0.8631 | lr 3.00e-03
+2026-03-05 13:52:24,577 - INFO - Epoch 146/250 | train loss 1.1732 acc 0.9386 mask 0.678 u 0.400 thr 0.800 | valid loss 0.7239 acc 0.8676 | lr 3.00e-03
+2026-03-05 13:52:24,641 - INFO -   -> saved best (EMA): 0.8676 (best-model-20260305-122606.pt)
+2026-03-05 13:53:21,097 - INFO - Epoch 147/250 | train loss 1.1686 acc 0.9365 mask 0.681 u 0.400 thr 0.800 | valid loss 0.7252 acc 0.8586 | lr 3.00e-03
+2026-03-05 13:54:17,776 - INFO - Epoch 148/250 | train loss 1.1010 acc 0.9356 mask 0.678 u 0.400 thr 0.800 | valid loss 0.7247 acc 0.8557 | lr 2.99e-03
+2026-03-05 13:55:14,416 - INFO - Epoch 149/250 | train loss 1.1298 acc 0.9413 mask 0.687 u 0.400 thr 0.800 | valid loss 0.7197 acc 0.8542 | lr 2.99e-03
+2026-03-05 13:56:11,070 - INFO - Epoch 150/250 | train loss 1.1674 acc 0.9386 mask 0.689 u 0.400 thr 0.800 | valid loss 0.7167 acc 0.8557 | lr 2.98e-03
+2026-03-05 13:57:07,707 - INFO - Epoch 151/250 | train loss 1.1633 acc 0.9413 mask 0.685 u 0.400 thr 0.800 | valid loss 0.7135 acc 0.8557 | lr 2.98e-03
+2026-03-05 13:58:04,366 - INFO - Epoch 152/250 | train loss 1.1478 acc 0.9479 mask 0.690 u 0.400 thr 0.800 | valid loss 0.7099 acc 0.8690 | lr 2.97e-03
+2026-03-05 13:58:04,427 - INFO -   -> saved best (EMA): 0.8690 (best-model-20260305-122606.pt)
+2026-03-05 13:59:01,051 - INFO - Epoch 153/250 | train loss 1.1223 acc 0.9516 mask 0.695 u 0.400 thr 0.800 | valid loss 0.7113 acc 0.8631 | lr 2.96e-03
+2026-03-05 13:59:57,700 - INFO - Epoch 154/250 | train loss 1.0916 acc 0.9506 mask 0.696 u 0.400 thr 0.800 | valid loss 0.7134 acc 0.8571 | lr 2.95e-03
+2026-03-05 14:00:54,211 - INFO - Epoch 155/250 | train loss 1.1162 acc 0.9526 mask 0.698 u 0.400 thr 0.800 | valid loss 0.7142 acc 0.8616 | lr 2.93e-03
+2026-03-05 14:01:50,918 - INFO - Epoch 156/250 | train loss 1.1294 acc 0.9660 mask 0.704 u 0.400 thr 0.800 | valid loss 0.7096 acc 0.8690 | lr 2.92e-03
+2026-03-05 14:02:47,598 - INFO - Epoch 157/250 | train loss 1.0732 acc 0.9573 mask 0.709 u 0.400 thr 0.800 | valid loss 0.7052 acc 0.8720 | lr 2.90e-03
+2026-03-05 14:02:47,660 - INFO -   -> saved best (EMA): 0.8720 (best-model-20260305-122606.pt)
+2026-03-05 14:03:44,266 - INFO - Epoch 158/250 | train loss 1.0539 acc 0.9573 mask 0.715 u 0.400 thr 0.800 | valid loss 0.7072 acc 0.8661 | lr 2.89e-03
+2026-03-05 14:04:40,922 - INFO - Epoch 159/250 | train loss 1.1517 acc 0.9684 mask 0.718 u 0.400 thr 0.800 | valid loss 0.7088 acc 0.8571 | lr 2.87e-03
+2026-03-05 14:05:37,590 - INFO - Epoch 160/250 | train loss 1.0531 acc 0.9651 mask 0.727 u 0.400 thr 0.800 | valid loss 0.7077 acc 0.8646 | lr 2.85e-03
+2026-03-05 14:06:34,664 - INFO - Epoch 161/250 | train loss 1.0950 acc 0.9671 mask 0.729 u 0.400 thr 0.800 | valid loss 0.7071 acc 0.8676 | lr 2.83e-03
+2026-03-05 14:07:31,342 - INFO - Epoch 162/250 | train loss 1.0337 acc 0.9677 mask 0.730 u 0.400 thr 0.800 | valid loss 0.7004 acc 0.8735 | lr 2.81e-03
+2026-03-05 14:07:31,404 - INFO -   -> saved best (EMA): 0.8735 (best-model-20260305-122606.pt)
+2026-03-05 14:08:27,927 - INFO - Epoch 163/250 | train loss 1.1030 acc 0.9685 mask 0.742 u 0.400 thr 0.800 | valid loss 0.6992 acc 0.8646 | lr 2.79e-03
+2026-03-05 14:09:24,587 - INFO - Epoch 164/250 | train loss 1.0664 acc 0.9710 mask 0.742 u 0.400 thr 0.800 | valid loss 0.6958 acc 0.8690 | lr 2.76e-03
+2026-03-05 14:10:21,280 - INFO - Epoch 165/250 | train loss 1.0535 acc 0.9724 mask 0.742 u 0.400 thr 0.800 | valid loss 0.6972 acc 0.8616 | lr 2.74e-03
+2026-03-05 14:11:17,959 - INFO - Epoch 166/250 | train loss 1.0978 acc 0.9661 mask 0.749 u 0.400 thr 0.800 | valid loss 0.6954 acc 0.8646 | lr 2.71e-03
+2026-03-05 14:12:14,594 - INFO - Epoch 167/250 | train loss 0.9952 acc 0.9748 mask 0.749 u 0.400 thr 0.800 | valid loss 0.6925 acc 0.8646 | lr 2.69e-03
+2026-03-05 14:13:11,311 - INFO - Epoch 168/250 | train loss 1.0921 acc 0.9692 mask 0.746 u 0.400 thr 0.800 | valid loss 0.6911 acc 0.8676 | lr 2.66e-03
+2026-03-05 14:14:07,995 - INFO - Epoch 169/250 | train loss 1.0035 acc 0.9795 mask 0.753 u 0.400 thr 0.800 | valid loss 0.6899 acc 0.8616 | lr 2.63e-03
+2026-03-05 14:15:04,547 - INFO - Epoch 170/250 | train loss 1.0761 acc 0.9751 mask 0.760 u 0.400 thr 0.800 | valid loss 0.6899 acc 0.8616 | lr 2.60e-03
+2026-03-05 14:16:01,282 - INFO - Epoch 171/250 | train loss 1.0534 acc 0.9695 mask 0.753 u 0.400 thr 0.800 | valid loss 0.6884 acc 0.8631 | lr 2.57e-03
+2026-03-05 14:16:57,936 - INFO - Epoch 172/250 | train loss 1.0118 acc 0.9792 mask 0.761 u 0.400 thr 0.800 | valid loss 0.6873 acc 0.8646 | lr 2.54e-03
+2026-03-05 14:17:54,498 - INFO - Epoch 173/250 | train loss 1.0083 acc 0.9812 mask 0.761 u 0.400 thr 0.800 | valid loss 0.6841 acc 0.8690 | lr 2.50e-03
+2026-03-05 14:18:51,181 - INFO - Epoch 174/250 | train loss 0.9929 acc 0.9795 mask 0.763 u 0.400 thr 0.800 | valid loss 0.6835 acc 0.8720 | lr 2.47e-03
+2026-03-05 14:19:47,782 - INFO - Epoch 175/250 | train loss 1.0434 acc 0.9822 mask 0.768 u 0.400 thr 0.800 | valid loss 0.6862 acc 0.8676 | lr 2.43e-03
+2026-03-05 14:20:44,471 - INFO - Epoch 176/250 | train loss 0.9847 acc 0.9839 mask 0.769 u 0.400 thr 0.800 | valid loss 0.6840 acc 0.8705 | lr 2.40e-03
+2026-03-05 14:21:41,111 - INFO - Epoch 177/250 | train loss 0.9981 acc 0.9825 mask 0.774 u 0.400 thr 0.800 | valid loss 0.6848 acc 0.8690 | lr 2.36e-03
+2026-03-05 14:22:37,539 - INFO - Epoch 178/250 | train loss 0.9863 acc 0.9820 mask 0.770 u 0.400 thr 0.800 | valid loss 0.6839 acc 0.8690 | lr 2.33e-03
+2026-03-05 14:23:34,107 - INFO - Epoch 179/250 | train loss 1.0153 acc 0.9849 mask 0.771 u 0.400 thr 0.800 | valid loss 0.6819 acc 0.8705 | lr 2.29e-03
+2026-03-05 14:24:30,682 - INFO - Epoch 180/250 | train loss 0.9791 acc 0.9862 mask 0.775 u 0.400 thr 0.800 | valid loss 0.6842 acc 0.8676 | lr 2.25e-03
+2026-03-05 14:25:27,272 - INFO - Epoch 181/250 | train loss 1.0371 acc 0.9860 mask 0.777 u 0.400 thr 0.800 | valid loss 0.6871 acc 0.8646 | lr 2.21e-03
+2026-03-05 14:26:23,810 - INFO - Epoch 182/250 | train loss 1.0863 acc 0.9859 mask 0.783 u 0.400 thr 0.800 | valid loss 0.6848 acc 0.8616 | lr 2.17e-03
+2026-03-05 14:27:20,397 - INFO - Epoch 183/250 | train loss 0.9861 acc 0.9926 mask 0.783 u 0.400 thr 0.800 | valid loss 0.6801 acc 0.8631 | lr 2.13e-03
+2026-03-05 14:28:16,936 - INFO - Epoch 184/250 | train loss 0.9890 acc 0.9842 mask 0.783 u 0.400 thr 0.800 | valid loss 0.6772 acc 0.8616 | lr 2.09e-03
+2026-03-05 14:29:13,536 - INFO - Epoch 185/250 | train loss 0.9652 acc 0.9886 mask 0.788 u 0.400 thr 0.800 | valid loss 0.6744 acc 0.8646 | lr 2.05e-03
+2026-03-05 14:30:10,056 - INFO - Epoch 186/250 | train loss 0.9703 acc 0.9895 mask 0.787 u 0.400 thr 0.800 | valid loss 0.6738 acc 0.8661 | lr 2.01e-03
+2026-03-05 14:31:06,513 - INFO - Epoch 187/250 | train loss 0.9560 acc 0.9919 mask 0.795 u 0.400 thr 0.800 | valid loss 0.6725 acc 0.8676 | lr 1.96e-03
+2026-03-05 14:32:02,883 - INFO - Epoch 188/250 | train loss 0.9129 acc 0.9916 mask 0.794 u 0.400 thr 0.800 | valid loss 0.6721 acc 0.8705 | lr 1.92e-03
+2026-03-05 14:32:59,484 - INFO - Epoch 189/250 | train loss 0.9431 acc 0.9879 mask 0.794 u 0.400 thr 0.800 | valid loss 0.6726 acc 0.8690 | lr 1.88e-03
+2026-03-05 14:33:56,061 - INFO - Epoch 190/250 | train loss 0.9113 acc 0.9933 mask 0.799 u 0.400 thr 0.800 | valid loss 0.6704 acc 0.8735 | lr 1.83e-03
+2026-03-05 14:34:52,620 - INFO - Epoch 191/250 | train loss 0.9449 acc 0.9901 mask 0.803 u 0.400 thr 0.800 | valid loss 0.6664 acc 0.8735 | lr 1.79e-03
+2026-03-05 14:35:49,208 - INFO - Epoch 192/250 | train loss 0.9688 acc 0.9916 mask 0.808 u 0.400 thr 0.800 | valid loss 0.6646 acc 0.8795 | lr 1.74e-03
+2026-03-05 14:35:49,272 - INFO -   -> saved best (EMA): 0.8795 (best-model-20260305-122606.pt)
+2026-03-05 14:36:45,829 - INFO - Epoch 193/250 | train loss 0.9378 acc 0.9950 mask 0.807 u 0.400 thr 0.800 | valid loss 0.6646 acc 0.8795 | lr 1.70e-03
+2026-03-05 14:37:42,407 - INFO - Epoch 194/250 | train loss 0.9631 acc 0.9916 mask 0.804 u 0.400 thr 0.800 | valid loss 0.6638 acc 0.8824 | lr 1.66e-03
+2026-03-05 14:37:42,468 - INFO -   -> saved best (EMA): 0.8824 (best-model-20260305-122606.pt)
+2026-03-05 14:38:39,149 - INFO - Epoch 195/250 | train loss 0.8959 acc 0.9960 mask 0.808 u 0.400 thr 0.800 | valid loss 0.6685 acc 0.8795 | lr 1.61e-03
+2026-03-05 14:39:35,710 - INFO - Epoch 196/250 | train loss 0.9417 acc 0.9946 mask 0.812 u 0.400 thr 0.800 | valid loss 0.6659 acc 0.8810 | lr 1.57e-03
+2026-03-05 14:40:32,217 - INFO - Epoch 197/250 | train loss 0.9235 acc 0.9940 mask 0.812 u 0.400 thr 0.800 | valid loss 0.6652 acc 0.8735 | lr 1.52e-03
+2026-03-05 14:41:28,741 - INFO - Epoch 198/250 | train loss 0.9426 acc 0.9950 mask 0.814 u 0.400 thr 0.800 | valid loss 0.6660 acc 0.8750 | lr 1.48e-03
+2026-03-05 14:42:25,292 - INFO - Epoch 199/250 | train loss 0.9049 acc 0.9926 mask 0.818 u 0.400 thr 0.800 | valid loss 0.6617 acc 0.8780 | lr 1.43e-03
+2026-03-05 14:43:21,880 - INFO - Epoch 200/250 | train loss 0.9274 acc 0.9953 mask 0.818 u 0.400 thr 0.800 | valid loss 0.6622 acc 0.8750 | lr 1.39e-03
+2026-03-05 14:44:18,408 - INFO - Epoch 201/250 | train loss 0.9340 acc 0.9956 mask 0.817 u 0.400 thr 0.800 | valid loss 0.6611 acc 0.8839 | lr 1.34e-03
+2026-03-05 14:44:18,471 - INFO -   -> saved best (EMA): 0.8839 (best-model-20260305-122606.pt)
+2026-03-05 14:45:15,026 - INFO - Epoch 202/250 | train loss 0.8460 acc 0.9940 mask 0.823 u 0.400 thr 0.800 | valid loss 0.6572 acc 0.8839 | lr 1.30e-03
+2026-03-05 14:46:11,580 - INFO - Epoch 203/250 | train loss 0.9249 acc 0.9966 mask 0.825 u 0.400 thr 0.800 | valid loss 0.6563 acc 0.8810 | lr 1.25e-03
+2026-03-05 14:47:08,160 - INFO - Epoch 204/250 | train loss 0.9328 acc 0.9960 mask 0.822 u 0.400 thr 0.800 | valid loss 0.6559 acc 0.8824 | lr 1.21e-03
+2026-03-05 14:48:04,731 - INFO - Epoch 205/250 | train loss 0.8788 acc 0.9970 mask 0.829 u 0.400 thr 0.800 | valid loss 0.6585 acc 0.8810 | lr 1.17e-03
+2026-03-05 14:49:01,286 - INFO - Epoch 206/250 | train loss 0.8913 acc 0.9973 mask 0.829 u 0.400 thr 0.800 | valid loss 0.6622 acc 0.8780 | lr 1.12e-03
+2026-03-05 14:49:57,917 - INFO - Epoch 207/250 | train loss 0.9430 acc 0.9983 mask 0.826 u 0.400 thr 0.800 | valid loss 0.6612 acc 0.8795 | lr 1.08e-03
+2026-03-05 14:50:54,484 - INFO - Epoch 208/250 | train loss 0.8352 acc 0.9966 mask 0.830 u 0.400 thr 0.800 | valid loss 0.6581 acc 0.8839 | lr 1.04e-03
+2026-03-05 14:51:51,066 - INFO - Epoch 209/250 | train loss 0.8500 acc 0.9983 mask 0.828 u 0.400 thr 0.800 | valid loss 0.6541 acc 0.8899 | lr 9.93e-04
+2026-03-05 14:51:51,130 - INFO -   -> saved best (EMA): 0.8899 (best-model-20260305-122606.pt)
+2026-03-05 14:52:47,686 - INFO - Epoch 210/250 | train loss 0.8585 acc 0.9993 mask 0.833 u 0.400 thr 0.800 | valid loss 0.6559 acc 0.8899 | lr 9.51e-04
+2026-03-05 14:53:44,262 - INFO - Epoch 211/250 | train loss 0.8734 acc 0.9987 mask 0.835 u 0.400 thr 0.800 | valid loss 0.6598 acc 0.8929 | lr 9.10e-04
+2026-03-05 14:53:44,323 - INFO -   -> saved best (EMA): 0.8929 (best-model-20260305-122606.pt)
+2026-03-05 14:54:40,904 - INFO - Epoch 212/250 | train loss 0.8675 acc 0.9993 mask 0.832 u 0.400 thr 0.800 | valid loss 0.6630 acc 0.8899 | lr 8.69e-04
+2026-03-05 14:55:37,492 - INFO - Epoch 213/250 | train loss 0.8262 acc 0.9983 mask 0.832 u 0.400 thr 0.800 | valid loss 0.6626 acc 0.8899 | lr 8.28e-04
+2026-03-05 14:56:34,084 - INFO - Epoch 214/250 | train loss 0.8936 acc 0.9987 mask 0.829 u 0.400 thr 0.800 | valid loss 0.6615 acc 0.8884 | lr 7.88e-04
+2026-03-05 14:57:30,671 - INFO - Epoch 215/250 | train loss 0.8871 acc 0.9980 mask 0.833 u 0.400 thr 0.800 | valid loss 0.6625 acc 0.8869 | lr 7.49e-04
+2026-03-05 14:58:27,114 - INFO - Epoch 216/250 | train loss 0.8476 acc 0.9993 mask 0.838 u 0.400 thr 0.800 | valid loss 0.6598 acc 0.8899 | lr 7.11e-04
+2026-03-05 14:59:23,723 - INFO - Epoch 217/250 | train loss 0.8672 acc 0.9997 mask 0.834 u 0.400 thr 0.800 | valid loss 0.6603 acc 0.8884 | lr 6.73e-04
+2026-03-05 15:00:20,286 - INFO - Epoch 218/250 | train loss 0.8646 acc 0.9987 mask 0.836 u 0.400 thr 0.800 | valid loss 0.6615 acc 0.8869 | lr 6.36e-04
+2026-03-05 15:01:16,883 - INFO - Epoch 219/250 | train loss 0.8464 acc 0.9993 mask 0.835 u 0.400 thr 0.800 | valid loss 0.6643 acc 0.8869 | lr 6.00e-04
+2026-03-05 15:02:13,438 - INFO - Epoch 220/250 | train loss 0.8258 acc 0.9993 mask 0.836 u 0.400 thr 0.800 | valid loss 0.6654 acc 0.8899 | lr 5.64e-04
+2026-03-05 15:03:09,950 - INFO - Epoch 221/250 | train loss 0.8544 acc 0.9990 mask 0.840 u 0.400 thr 0.800 | valid loss 0.6677 acc 0.8914 | lr 5.29e-04
+2026-03-05 15:04:06,462 - INFO - Epoch 222/250 | train loss 0.8570 acc 0.9997 mask 0.844 u 0.400 thr 0.800 | valid loss 0.6705 acc 0.8899 | lr 4.96e-04
+2026-03-05 15:05:03,000 - INFO - Epoch 223/250 | train loss 0.8603 acc 0.9993 mask 0.844 u 0.400 thr 0.800 | valid loss 0.6710 acc 0.8914 | lr 4.63e-04
+2026-03-05 15:05:59,551 - INFO - Epoch 224/250 | train loss 0.8466 acc 0.9983 mask 0.845 u 0.400 thr 0.800 | valid loss 0.6712 acc 0.8884 | lr 4.31e-04
+2026-03-05 15:06:56,053 - INFO - Epoch 225/250 | train loss 0.8321 acc 0.9990 mask 0.841 u 0.400 thr 0.800 | valid loss 0.6718 acc 0.8839 | lr 4.00e-04
+2026-03-05 15:07:52,612 - INFO - Epoch 226/250 | train loss 0.8285 acc 0.9990 mask 0.843 u 0.400 thr 0.800 | valid loss 0.6735 acc 0.8854 | lr 3.70e-04
+2026-03-05 15:08:49,111 - INFO - Epoch 227/250 | train loss 0.8235 acc 0.9993 mask 0.845 u 0.400 thr 0.800 | valid loss 0.6725 acc 0.8839 | lr 3.41e-04
+2026-03-05 15:09:45,682 - INFO - Epoch 228/250 | train loss 0.8674 acc 1.0000 mask 0.840 u 0.400 thr 0.800 | valid loss 0.6727 acc 0.8839 | lr 3.13e-04
+2026-03-05 15:10:42,108 - INFO - Epoch 229/250 | train loss 0.8263 acc 0.9993 mask 0.845 u 0.400 thr 0.800 | valid loss 0.6726 acc 0.8795 | lr 2.86e-04
+2026-03-05 15:11:38,621 - INFO - Epoch 230/250 | train loss 0.8532 acc 0.9997 mask 0.841 u 0.400 thr 0.800 | valid loss 0.6719 acc 0.8795 | lr 2.60e-04
+2026-03-05 15:12:35,303 - INFO - Epoch 231/250 | train loss 0.8419 acc 0.9993 mask 0.844 u 0.400 thr 0.800 | valid loss 0.6694 acc 0.8765 | lr 2.35e-04
+2026-03-05 15:13:31,902 - INFO - Epoch 232/250 | train loss 0.7933 acc 0.9997 mask 0.845 u 0.400 thr 0.800 | valid loss 0.6687 acc 0.8780 | lr 2.12e-04
+2026-03-05 15:14:28,418 - INFO - Epoch 233/250 | train loss 0.8736 acc 1.0000 mask 0.840 u 0.400 thr 0.800 | valid loss 0.6700 acc 0.8795 | lr 1.89e-04
+2026-03-05 15:15:25,017 - INFO - Epoch 234/250 | train loss 0.8343 acc 0.9997 mask 0.845 u 0.400 thr 0.800 | valid loss 0.6713 acc 0.8780 | lr 1.68e-04
+2026-03-05 15:16:21,575 - INFO - Epoch 235/250 | train loss 0.8285 acc 0.9990 mask 0.846 u 0.400 thr 0.800 | valid loss 0.6740 acc 0.8765 | lr 1.64e-04
+2026-03-05 15:17:18,129 - INFO - Epoch 236/250 | train loss 0.8186 acc 1.0000 mask 0.846 u 0.400 thr 0.800 | valid loss 0.6761 acc 0.8765 | lr 1.53e-04
+2026-03-05 15:18:14,676 - INFO - Epoch 237/250 | train loss 0.7966 acc 0.9997 mask 0.846 u 0.400 thr 0.800 | valid loss 0.6767 acc 0.8750 | lr 1.36e-04
+2026-03-05 15:19:11,251 - INFO - Epoch 238/250 | train loss 0.8038 acc 0.9997 mask 0.848 u 0.400 thr 0.800 | valid loss 0.6761 acc 0.8795 | lr 1.14e-04
+2026-03-05 15:20:07,807 - INFO - Epoch 239/250 | train loss 0.8426 acc 0.9993 mask 0.847 u 0.400 thr 0.800 | valid loss 0.6761 acc 0.8810 | lr 8.91e-05
+2026-03-05 15:21:04,371 - INFO - Epoch 240/250 | train loss 0.8341 acc 0.9997 mask 0.848 u 0.400 thr 0.800 | valid loss 0.6758 acc 0.8810 | lr 6.47e-05
+2026-03-05 15:22:00,926 - INFO - Epoch 241/250 | train loss 0.8435 acc 1.0000 mask 0.850 u 0.400 thr 0.800 | valid loss 0.6759 acc 0.8824 | lr 4.26e-05
+2026-03-05 15:22:57,410 - INFO - Epoch 242/250 | train loss 0.8454 acc 0.9997 mask 0.847 u 0.400 thr 0.800 | valid loss 0.6762 acc 0.8839 | lr 2.51e-05
+2026-03-05 15:23:53,857 - INFO - Epoch 243/250 | train loss 0.8120 acc 1.0000 mask 0.845 u 0.400 thr 0.800 | valid loss 0.6768 acc 0.8854 | lr 1.39e-05
+2026-03-05 15:24:50,464 - INFO - Epoch 244/250 | train loss 0.8198 acc 1.0000 mask 0.847 u 0.400 thr 0.800 | valid loss 0.6774 acc 0.8854 | lr 1.00e-05
+2026-03-05 15:25:47,026 - INFO - Epoch 245/250 | train loss 0.8370 acc 0.9997 mask 0.848 u 0.400 thr 0.800 | valid loss 0.6779 acc 0.8839 | lr 1.00e-05
+2026-03-05 15:26:43,558 - INFO - Epoch 246/250 | train loss 0.8657 acc 1.0000 mask 0.847 u 0.400 thr 0.800 | valid loss 0.6783 acc 0.8839 | lr 1.00e-05
+2026-03-05 15:27:40,101 - INFO - Epoch 247/250 | train loss 0.7991 acc 0.9997 mask 0.846 u 0.400 thr 0.800 | valid loss 0.6787 acc 0.8810 | lr 1.00e-05
+2026-03-05 15:28:36,678 - INFO - Epoch 248/250 | train loss 0.7943 acc 0.9993 mask 0.844 u 0.400 thr 0.800 | valid loss 0.6789 acc 0.8795 | lr 1.00e-05
+2026-03-05 15:29:33,172 - INFO - Epoch 249/250 | train loss 0.7865 acc 1.0000 mask 0.844 u 0.400 thr 0.800 | valid loss 0.6793 acc 0.8795 | lr 1.00e-05
+2026-03-05 15:30:29,761 - INFO - Epoch 250/250 | train loss 0.8166 acc 0.9997 mask 0.848 u 0.400 thr 0.800 | valid loss 0.6796 acc 0.8795 | lr 1.00e-05
+2026-03-05 15:30:29,763 - INFO - SWA: updating batch normalization statistics...
+2026-03-05 15:30:55,632 - INFO - SWA valid acc: 0.8765 (EMA best: 0.8929)
+2026-03-05 15:30:55,662 - INFO -   -> saved SWA model: swa-model-20260305-122606.pt
+2026-03-05 15:30:57,115 - INFO - [EMA] TTA enabled: 10 augmentations
+2026-03-05 15:31:38,138 - INFO - [EMA] Valid acc (TTA): 0.8894
+2026-03-05 15:35:16,757 - INFO - [EMA] Saved predictions: predict-20260305-122606.csv (3347 samples)
+2026-03-05 15:35:16,757 - INFO - [SWA] TTA enabled: 10 augmentations
+2026-03-05 15:35:57,440 - INFO - [SWA] Valid acc (TTA): 0.8924
+2026-03-05 15:39:23,908 - INFO - [SWA] Saved predictions: swa-predict-20260305-122606.csv (3347 samples)
+2026-03-05 15:39:23,909 - INFO - 
+2026-03-05 15:39:23,909 - INFO - ============================================================
+2026-03-05 15:39:23,910 - INFO -   TRAINING SUMMARY
+2026-03-05 15:39:23,910 - INFO - ============================================================
+2026-03-05 15:39:23,910 - INFO - 
+2026-03-05 15:39:23,910 - INFO -   [Best EMA Model]
+2026-03-05 15:39:23,910 - INFO -     Epoch:       211/250
+2026-03-05 15:39:23,910 - INFO -     Train Loss:  0.8734
+2026-03-05 15:39:23,910 - INFO -     Train Acc:   0.9987
+2026-03-05 15:39:23,910 - INFO -     Valid Loss:  0.6598
+2026-03-05 15:39:23,910 - INFO -     Valid Acc:   0.8929
+2026-03-05 15:39:23,910 - INFO -     Valid (TTA): 0.8894
+2026-03-05 15:39:23,910 - INFO -     Mask:        0.835
+2026-03-05 15:39:23,910 - INFO -     Lambda_u:    0.400
+2026-03-05 15:39:23,910 - INFO -     LR:          9.10e-04
+2026-03-05 15:39:23,910 - INFO -     Checkpoint:  best-model-20260305-122606.pt
+2026-03-05 15:39:23,910 - INFO -     Predictions: predict-20260305-122606.csv
+2026-03-05 15:39:23,910 - INFO - 
+2026-03-05 15:39:23,910 - INFO -   [SWA Model]
+2026-03-05 15:39:23,910 - INFO -     Avg Range:   epoch 235~250 (15 epochs)
+2026-03-05 15:39:23,910 - INFO -     Valid Loss:  0.9125
+2026-03-05 15:39:23,910 - INFO -     Valid Acc:   0.8765
+2026-03-05 15:39:23,910 - INFO -     Valid (TTA): 0.8924
+2026-03-05 15:39:23,910 - INFO -     Checkpoint:  swa-model-20260305-122606.pt
+2026-03-05 15:39:23,910 - INFO -     Predictions: swa-predict-20260305-122606.csv
+2026-03-05 15:39:23,910 - INFO - 
+2026-03-05 15:39:23,910 - INFO - ============================================================
+2026-03-05 15:39:23,910 - INFO -   Done.
+2026-03-05 15:39:23,910 - INFO - ============================================================
+2026-03-05 15:39:23,911 - INFO - 
+2026-03-05 15:39:23,911 - INFO - ============================================================
+2026-03-05 15:39:23,911 - INFO -   PHASE 2: SELF-TRAINING
+2026-03-05 15:39:23,911 - INFO - ============================================================
+2026-03-05 15:39:23,978 - INFO - Model: resnet18 | #params: 11.262 M
+2026-03-05 15:39:47,968 - INFO - Pseudo-labels: 5648/6786 samples above threshold 0.80 (avg conf: 0.8924)
+2026-03-05 15:39:47,972 - INFO - Self-training data: 2970 labeled + 5648 pseudo = 8618 total
+2026-03-05 15:39:48,046 - INFO - Model: resnet18 | #params: 11.262 M
+2026-03-05 15:39:48,047 - INFO - Scheduler: OneCycleLR (max_lr=0.003, steps/epoch=135)
+2026-03-05 15:39:48,047 - INFO - AMP (Automatic Mixed Precision) enabled
+2026-03-05 15:39:48,053 - INFO - SWA enabled: start averaging from epoch 135, swa_lr=1.0e-05
+2026-03-05 15:40:59,785 - INFO - Epoch 01/150 | train loss 2.1787 acc 0.2847 mask 0.000 u 0.000 thr 0.800 | valid loss 2.4961 acc 0.0952 | lr 1.24e-04
+2026-03-05 15:40:59,842 - INFO -   -> saved best (EMA): 0.0952 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:41:55,694 - INFO - Epoch 02/150 | train loss 2.0847 acc 0.3475 mask 0.000 u 0.000 thr 0.800 | valid loss 2.8649 acc 0.0967 | lr 1.34e-04
+2026-03-05 15:41:55,755 - INFO -   -> saved best (EMA): 0.0967 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:42:51,644 - INFO - Epoch 03/150 | train loss 2.0094 acc 0.3879 mask 0.000 u 0.000 thr 0.800 | valid loss 3.1970 acc 0.0997 | lr 1.51e-04
+2026-03-05 15:42:51,705 - INFO -   -> saved best (EMA): 0.0997 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:43:47,652 - INFO - Epoch 04/150 | train loss 1.9406 acc 0.4390 mask 0.000 u 0.000 thr 0.800 | valid loss 3.0244 acc 0.1086 | lr 1.76e-04
+2026-03-05 15:43:47,714 - INFO -   -> saved best (EMA): 0.1086 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:44:43,616 - INFO - Epoch 05/150 | train loss 1.8855 acc 0.4725 mask 0.000 u 0.000 thr 0.800 | valid loss 2.4483 acc 0.1801 | lr 2.07e-04
+2026-03-05 15:44:43,679 - INFO -   -> saved best (EMA): 0.1801 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:45:39,496 - INFO - Epoch 06/150 | train loss 1.8349 acc 0.5018 mask 0.000 u 0.000 thr 0.800 | valid loss 1.9332 acc 0.3408 | lr 2.45e-04
+2026-03-05 15:45:39,556 - INFO -   -> saved best (EMA): 0.3408 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:46:35,488 - INFO - Epoch 07/150 | train loss 1.7966 acc 0.5302 mask 0.000 u 0.000 thr 0.800 | valid loss 1.6513 acc 0.4807 | lr 2.89e-04
+2026-03-05 15:46:35,549 - INFO -   -> saved best (EMA): 0.4807 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:47:31,424 - INFO - Epoch 08/150 | train loss 1.7492 acc 0.5517 mask 0.000 u 0.000 thr 0.800 | valid loss 1.5004 acc 0.5268 | lr 3.39e-04
+2026-03-05 15:47:31,486 - INFO -   -> saved best (EMA): 0.5268 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:48:27,305 - INFO - Epoch 09/150 | train loss 1.7332 acc 0.5765 mask 0.000 u 0.000 thr 0.800 | valid loss 1.3965 acc 0.5640 | lr 3.95e-04
+2026-03-05 15:48:27,367 - INFO -   -> saved best (EMA): 0.5640 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:49:23,251 - INFO - Epoch 10/150 | train loss 1.7029 acc 0.5897 mask 0.000 u 0.000 thr 0.800 | valid loss 1.3176 acc 0.6042 | lr 4.57e-04
+2026-03-05 15:49:23,313 - INFO -   -> saved best (EMA): 0.6042 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:50:19,190 - INFO - Epoch 11/150 | train loss 1.6532 acc 0.6206 mask 0.000 u 0.000 thr 0.800 | valid loss 1.2644 acc 0.6280 | lr 5.24e-04
+2026-03-05 15:50:19,263 - INFO -   -> saved best (EMA): 0.6280 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:51:15,123 - INFO - Epoch 12/150 | train loss 1.6555 acc 0.6307 mask 0.000 u 0.000 thr 0.800 | valid loss 1.2245 acc 0.6518 | lr 5.97e-04
+2026-03-05 15:51:15,184 - INFO -   -> saved best (EMA): 0.6518 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:52:11,027 - INFO - Epoch 13/150 | train loss 1.6064 acc 0.6513 mask 0.000 u 0.000 thr 0.800 | valid loss 1.1736 acc 0.6741 | lr 6.74e-04
+2026-03-05 15:52:11,089 - INFO -   -> saved best (EMA): 0.6741 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:53:06,922 - INFO - Epoch 14/150 | train loss 1.5833 acc 0.6650 mask 0.000 u 0.000 thr 0.800 | valid loss 1.1432 acc 0.6935 | lr 7.55e-04
+2026-03-05 15:53:06,983 - INFO -   -> saved best (EMA): 0.6935 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:54:02,876 - INFO - Epoch 15/150 | train loss 1.5535 acc 0.6766 mask 0.000 u 0.000 thr 0.800 | valid loss 1.1058 acc 0.7173 | lr 8.40e-04
+2026-03-05 15:54:02,940 - INFO -   -> saved best (EMA): 0.7173 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:54:58,857 - INFO - Epoch 16/150 | train loss 1.5572 acc 0.6939 mask 0.000 u 0.000 thr 0.800 | valid loss 1.0825 acc 0.7188 | lr 9.29e-04
+2026-03-05 15:54:58,930 - INFO -   -> saved best (EMA): 0.7188 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:55:54,835 - INFO - Epoch 17/150 | train loss 1.5127 acc 0.6976 mask 0.000 u 0.000 thr 0.800 | valid loss 1.0552 acc 0.7426 | lr 1.02e-03
+2026-03-05 15:55:54,913 - INFO -   -> saved best (EMA): 0.7426 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:56:50,733 - INFO - Epoch 18/150 | train loss 1.4975 acc 0.7150 mask 0.000 u 0.000 thr 0.800 | valid loss 1.0343 acc 0.7381 | lr 1.12e-03
+2026-03-05 15:57:46,354 - INFO - Epoch 19/150 | train loss 1.4938 acc 0.7256 mask 0.000 u 0.000 thr 0.800 | valid loss 1.0135 acc 0.7545 | lr 1.21e-03
+2026-03-05 15:57:46,427 - INFO -   -> saved best (EMA): 0.7545 (best-model-20260305-122606-ST.pt)
+2026-03-05 15:58:42,286 - INFO - Epoch 20/150 | train loss 1.4725 acc 0.7250 mask 0.000 u 0.000 thr 0.800 | valid loss 1.0049 acc 0.7530 | lr 1.31e-03
+2026-03-05 15:59:37,968 - INFO - Epoch 21/150 | train loss 1.4405 acc 0.7332 mask 0.000 u 0.000 thr 0.800 | valid loss 0.9852 acc 0.7545 | lr 1.41e-03
+2026-03-05 16:00:33,844 - INFO - Epoch 22/150 | train loss 1.4390 acc 0.7475 mask 0.000 u 0.000 thr 0.800 | valid loss 0.9679 acc 0.7545 | lr 1.51e-03
+2026-03-05 16:01:29,689 - INFO - Epoch 23/150 | train loss 1.4371 acc 0.7530 mask 0.000 u 0.000 thr 0.800 | valid loss 0.9648 acc 0.7604 | lr 1.61e-03
+2026-03-05 16:01:29,752 - INFO -   -> saved best (EMA): 0.7604 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:02:25,668 - INFO - Epoch 24/150 | train loss 1.3981 acc 0.7563 mask 0.000 u 0.000 thr 0.800 | valid loss 0.9415 acc 0.7649 | lr 1.71e-03
+2026-03-05 16:02:25,731 - INFO -   -> saved best (EMA): 0.7649 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:03:21,731 - INFO - Epoch 25/150 | train loss 1.3846 acc 0.7723 mask 0.000 u 0.000 thr 0.800 | valid loss 0.9286 acc 0.7693 | lr 1.81e-03
+2026-03-05 16:03:21,795 - INFO -   -> saved best (EMA): 0.7693 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:04:17,766 - INFO - Epoch 26/150 | train loss 1.3789 acc 0.7814 mask 0.000 u 0.000 thr 0.800 | valid loss 0.9194 acc 0.7842 | lr 1.91e-03
+2026-03-05 16:04:17,830 - INFO -   -> saved best (EMA): 0.7842 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:05:13,683 - INFO - Epoch 27/150 | train loss 1.3625 acc 0.7819 mask 0.000 u 0.000 thr 0.800 | valid loss 0.9063 acc 0.7887 | lr 2.01e-03
+2026-03-05 16:05:13,744 - INFO -   -> saved best (EMA): 0.7887 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:06:09,659 - INFO - Epoch 28/150 | train loss 1.3222 acc 0.7877 mask 0.000 u 0.000 thr 0.800 | valid loss 0.9025 acc 0.7768 | lr 2.10e-03
+2026-03-05 16:07:05,546 - INFO - Epoch 29/150 | train loss 1.3577 acc 0.7973 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8833 acc 0.7857 | lr 2.19e-03
+2026-03-05 16:08:01,342 - INFO - Epoch 30/150 | train loss 1.3112 acc 0.8048 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8705 acc 0.7857 | lr 2.28e-03
+2026-03-05 16:08:57,161 - INFO - Epoch 31/150 | train loss 1.3305 acc 0.8042 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8610 acc 0.7961 | lr 2.37e-03
+2026-03-05 16:08:57,232 - INFO -   -> saved best (EMA): 0.7961 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:09:53,083 - INFO - Epoch 32/150 | train loss 1.3357 acc 0.8128 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8544 acc 0.8036 | lr 2.45e-03
+2026-03-05 16:09:53,150 - INFO -   -> saved best (EMA): 0.8036 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:10:49,042 - INFO - Epoch 33/150 | train loss 1.3074 acc 0.8201 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8453 acc 0.7991 | lr 2.52e-03
+2026-03-05 16:11:44,787 - INFO - Epoch 34/150 | train loss 1.2900 acc 0.8224 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8336 acc 0.8065 | lr 2.60e-03
+2026-03-05 16:11:44,882 - INFO -   -> saved best (EMA): 0.8065 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:12:40,624 - INFO - Epoch 35/150 | train loss 1.2958 acc 0.8235 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8331 acc 0.8080 | lr 2.66e-03
+2026-03-05 16:12:40,780 - INFO -   -> saved best (EMA): 0.8080 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:13:36,610 - INFO - Epoch 36/150 | train loss 1.2614 acc 0.8367 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8131 acc 0.8110 | lr 2.73e-03
+2026-03-05 16:13:36,674 - INFO -   -> saved best (EMA): 0.8110 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:14:32,685 - INFO - Epoch 37/150 | train loss 1.2514 acc 0.8374 mask 0.000 u 0.000 thr 0.800 | valid loss 0.8045 acc 0.8051 | lr 2.78e-03
+2026-03-05 16:15:28,503 - INFO - Epoch 38/150 | train loss 1.2217 acc 0.8430 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7985 acc 0.8140 | lr 2.83e-03
+2026-03-05 16:15:28,566 - INFO -   -> saved best (EMA): 0.8140 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:16:24,437 - INFO - Epoch 39/150 | train loss 1.2639 acc 0.8393 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7881 acc 0.8304 | lr 2.88e-03
+2026-03-05 16:16:24,498 - INFO -   -> saved best (EMA): 0.8304 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:17:20,294 - INFO - Epoch 40/150 | train loss 1.2345 acc 0.8506 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7941 acc 0.8185 | lr 2.91e-03
+2026-03-05 16:18:16,124 - INFO - Epoch 41/150 | train loss 1.2182 acc 0.8522 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7862 acc 0.8274 | lr 2.94e-03
+2026-03-05 16:19:11,923 - INFO - Epoch 42/150 | train loss 1.2496 acc 0.8538 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7800 acc 0.8318 | lr 2.97e-03
+2026-03-05 16:19:11,985 - INFO -   -> saved best (EMA): 0.8318 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:20:07,800 - INFO - Epoch 43/150 | train loss 1.1796 acc 0.8586 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7754 acc 0.8289 | lr 2.99e-03
+2026-03-05 16:21:03,670 - INFO - Epoch 44/150 | train loss 1.1730 acc 0.8682 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7779 acc 0.8244 | lr 3.00e-03
+2026-03-05 16:21:59,506 - INFO - Epoch 45/150 | train loss 1.1829 acc 0.8668 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7732 acc 0.8348 | lr 3.00e-03
+2026-03-05 16:21:59,566 - INFO -   -> saved best (EMA): 0.8348 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:22:55,513 - INFO - Epoch 46/150 | train loss 1.1891 acc 0.8758 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7646 acc 0.8408 | lr 3.00e-03
+2026-03-05 16:22:55,575 - INFO -   -> saved best (EMA): 0.8408 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:23:51,699 - INFO - Epoch 47/150 | train loss 1.1976 acc 0.8820 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7492 acc 0.8438 | lr 3.00e-03
+2026-03-05 16:23:51,760 - INFO -   -> saved best (EMA): 0.8438 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:24:47,615 - INFO - Epoch 48/150 | train loss 1.1538 acc 0.8789 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7433 acc 0.8333 | lr 2.99e-03
+2026-03-05 16:25:43,535 - INFO - Epoch 49/150 | train loss 1.1729 acc 0.8863 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7436 acc 0.8408 | lr 2.99e-03
+2026-03-05 16:26:39,397 - INFO - Epoch 50/150 | train loss 1.1246 acc 0.8887 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7429 acc 0.8452 | lr 2.98e-03
+2026-03-05 16:26:39,459 - INFO -   -> saved best (EMA): 0.8452 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:27:35,265 - INFO - Epoch 51/150 | train loss 1.1254 acc 0.8970 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7418 acc 0.8467 | lr 2.98e-03
+2026-03-05 16:27:35,332 - INFO -   -> saved best (EMA): 0.8467 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:28:31,122 - INFO - Epoch 52/150 | train loss 1.1237 acc 0.9033 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7300 acc 0.8423 | lr 2.97e-03
+2026-03-05 16:29:26,739 - INFO - Epoch 53/150 | train loss 1.1391 acc 0.9011 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7287 acc 0.8497 | lr 2.96e-03
+2026-03-05 16:29:26,799 - INFO -   -> saved best (EMA): 0.8497 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:30:22,485 - INFO - Epoch 54/150 | train loss 1.1270 acc 0.8987 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7207 acc 0.8571 | lr 2.95e-03
+2026-03-05 16:30:22,548 - INFO -   -> saved best (EMA): 0.8571 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:31:18,414 - INFO - Epoch 55/150 | train loss 1.1378 acc 0.9042 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7228 acc 0.8467 | lr 2.93e-03
+2026-03-05 16:32:14,228 - INFO - Epoch 56/150 | train loss 1.0935 acc 0.9029 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7127 acc 0.8482 | lr 2.92e-03
+2026-03-05 16:33:10,031 - INFO - Epoch 57/150 | train loss 1.0972 acc 0.9104 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7176 acc 0.8512 | lr 2.90e-03
+2026-03-05 16:34:05,867 - INFO - Epoch 58/150 | train loss 1.0934 acc 0.9140 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7107 acc 0.8571 | lr 2.89e-03
+2026-03-05 16:35:01,704 - INFO - Epoch 59/150 | train loss 1.1037 acc 0.9105 mask 0.000 u 0.000 thr 0.800 | valid loss 0.7026 acc 0.8527 | lr 2.87e-03
+2026-03-05 16:35:57,543 - INFO - Epoch 60/150 | train loss 1.0751 acc 0.9212 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6953 acc 0.8512 | lr 2.85e-03
+2026-03-05 16:36:53,312 - INFO - Epoch 61/150 | train loss 1.0721 acc 0.9270 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6923 acc 0.8557 | lr 2.83e-03
+2026-03-05 16:37:49,266 - INFO - Epoch 62/150 | train loss 1.0750 acc 0.9228 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6729 acc 0.8780 | lr 2.81e-03
+2026-03-05 16:37:49,329 - INFO -   -> saved best (EMA): 0.8780 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:38:45,208 - INFO - Epoch 63/150 | train loss 1.0552 acc 0.9288 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6630 acc 0.8839 | lr 2.79e-03
+2026-03-05 16:38:45,268 - INFO -   -> saved best (EMA): 0.8839 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:39:40,878 - INFO - Epoch 64/150 | train loss 1.0579 acc 0.9268 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6729 acc 0.8735 | lr 2.76e-03
+2026-03-05 16:40:36,689 - INFO - Epoch 65/150 | train loss 1.0554 acc 0.9308 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6648 acc 0.8810 | lr 2.74e-03
+2026-03-05 16:41:32,500 - INFO - Epoch 66/150 | train loss 1.0476 acc 0.9298 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6736 acc 0.8676 | lr 2.71e-03
+2026-03-05 16:42:28,328 - INFO - Epoch 67/150 | train loss 1.0125 acc 0.9373 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6703 acc 0.8750 | lr 2.69e-03
+2026-03-05 16:43:24,133 - INFO - Epoch 68/150 | train loss 1.0000 acc 0.9381 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6686 acc 0.8720 | lr 2.66e-03
+2026-03-05 16:44:19,922 - INFO - Epoch 69/150 | train loss 1.0562 acc 0.9410 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6680 acc 0.8720 | lr 2.63e-03
+2026-03-05 16:45:15,944 - INFO - Epoch 70/150 | train loss 1.0284 acc 0.9424 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6642 acc 0.8661 | lr 2.60e-03
+2026-03-05 16:46:11,917 - INFO - Epoch 71/150 | train loss 0.9986 acc 0.9439 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6631 acc 0.8750 | lr 2.57e-03
+2026-03-05 16:47:07,854 - INFO - Epoch 72/150 | train loss 1.0000 acc 0.9526 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6720 acc 0.8586 | lr 2.54e-03
+2026-03-05 16:48:03,691 - INFO - Epoch 73/150 | train loss 0.9928 acc 0.9534 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6702 acc 0.8705 | lr 2.50e-03
+2026-03-05 16:48:59,493 - INFO - Epoch 74/150 | train loss 0.9912 acc 0.9530 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6665 acc 0.8795 | lr 2.47e-03
+2026-03-05 16:49:55,315 - INFO - Epoch 75/150 | train loss 0.9985 acc 0.9566 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6579 acc 0.8824 | lr 2.43e-03
+2026-03-05 16:50:51,293 - INFO - Epoch 76/150 | train loss 0.9454 acc 0.9589 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6506 acc 0.8765 | lr 2.40e-03
+2026-03-05 16:51:47,094 - INFO - Epoch 77/150 | train loss 0.9863 acc 0.9591 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6486 acc 0.8810 | lr 2.36e-03
+2026-03-05 16:52:43,127 - INFO - Epoch 78/150 | train loss 0.9588 acc 0.9614 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6538 acc 0.8810 | lr 2.33e-03
+2026-03-05 16:53:38,917 - INFO - Epoch 79/150 | train loss 0.9741 acc 0.9614 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6518 acc 0.8765 | lr 2.29e-03
+2026-03-05 16:54:34,720 - INFO - Epoch 80/150 | train loss 0.9567 acc 0.9609 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6509 acc 0.8735 | lr 2.25e-03
+2026-03-05 16:55:30,491 - INFO - Epoch 81/150 | train loss 0.9555 acc 0.9663 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6455 acc 0.8884 | lr 2.21e-03
+2026-03-05 16:55:30,552 - INFO -   -> saved best (EMA): 0.8884 (best-model-20260305-122606-ST.pt)
+2026-03-05 16:56:26,467 - INFO - Epoch 82/150 | train loss 0.9510 acc 0.9670 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6439 acc 0.8750 | lr 2.17e-03
+2026-03-05 16:57:22,324 - INFO - Epoch 83/150 | train loss 0.9476 acc 0.9678 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6420 acc 0.8810 | lr 2.13e-03
+2026-03-05 16:58:18,144 - INFO - Epoch 84/150 | train loss 0.9393 acc 0.9722 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6359 acc 0.8869 | lr 2.09e-03
+2026-03-05 16:59:13,918 - INFO - Epoch 85/150 | train loss 0.9449 acc 0.9702 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6362 acc 0.8884 | lr 2.05e-03
+2026-03-05 17:00:09,740 - INFO - Epoch 86/150 | train loss 0.9129 acc 0.9755 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6327 acc 0.8854 | lr 2.01e-03
+2026-03-05 17:01:05,452 - INFO - Epoch 87/150 | train loss 0.9352 acc 0.9731 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6346 acc 0.8914 | lr 1.96e-03
+2026-03-05 17:01:05,513 - INFO -   -> saved best (EMA): 0.8914 (best-model-20260305-122606-ST.pt)
+2026-03-05 17:02:01,121 - INFO - Epoch 88/150 | train loss 0.8854 acc 0.9762 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6389 acc 0.8869 | lr 1.92e-03
+2026-03-05 17:02:56,748 - INFO - Epoch 89/150 | train loss 0.9068 acc 0.9773 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6395 acc 0.8839 | lr 1.88e-03
+2026-03-05 17:03:52,583 - INFO - Epoch 90/150 | train loss 0.9082 acc 0.9803 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6360 acc 0.8884 | lr 1.83e-03
+2026-03-05 17:04:48,386 - INFO - Epoch 91/150 | train loss 0.8856 acc 0.9794 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6406 acc 0.8810 | lr 1.79e-03
+2026-03-05 17:05:44,246 - INFO - Epoch 92/150 | train loss 0.9044 acc 0.9847 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6377 acc 0.8824 | lr 1.75e-03
+2026-03-05 17:06:40,147 - INFO - Epoch 93/150 | train loss 0.8993 acc 0.9790 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6292 acc 0.8854 | lr 1.70e-03
+2026-03-05 17:07:36,020 - INFO - Epoch 94/150 | train loss 0.9156 acc 0.9825 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6217 acc 0.8899 | lr 1.66e-03
+2026-03-05 17:08:31,642 - INFO - Epoch 95/150 | train loss 0.8992 acc 0.9851 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6256 acc 0.8929 | lr 1.61e-03
+2026-03-05 17:08:31,704 - INFO -   -> saved best (EMA): 0.8929 (best-model-20260305-122606-ST.pt)
+2026-03-05 17:09:27,506 - INFO - Epoch 96/150 | train loss 0.8876 acc 0.9851 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6296 acc 0.8884 | lr 1.57e-03
+2026-03-05 17:10:23,452 - INFO - Epoch 97/150 | train loss 0.9028 acc 0.9853 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6316 acc 0.8929 | lr 1.52e-03
+2026-03-05 17:11:19,291 - INFO - Epoch 98/150 | train loss 0.8685 acc 0.9879 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6222 acc 0.8943 | lr 1.48e-03
+2026-03-05 17:11:19,354 - INFO -   -> saved best (EMA): 0.8943 (best-model-20260305-122606-ST.pt)
+2026-03-05 17:12:15,151 - INFO - Epoch 99/150 | train loss 0.8757 acc 0.9863 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6153 acc 0.8929 | lr 1.43e-03
+2026-03-05 17:13:10,959 - INFO - Epoch 100/150 | train loss 0.8403 acc 0.9876 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6066 acc 0.8929 | lr 1.39e-03
+2026-03-05 17:14:06,787 - INFO - Epoch 101/150 | train loss 0.8566 acc 0.9886 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6057 acc 0.8943 | lr 1.34e-03
+2026-03-05 17:15:02,619 - INFO - Epoch 102/150 | train loss 0.8487 acc 0.9904 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6079 acc 0.8943 | lr 1.30e-03
+2026-03-05 17:15:58,418 - INFO - Epoch 103/150 | train loss 0.8357 acc 0.9893 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6100 acc 0.9048 | lr 1.25e-03
+2026-03-05 17:15:58,481 - INFO -   -> saved best (EMA): 0.9048 (best-model-20260305-122606-ST.pt)
+2026-03-05 17:16:54,253 - INFO - Epoch 104/150 | train loss 0.8508 acc 0.9928 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6067 acc 0.8988 | lr 1.21e-03
+2026-03-05 17:17:50,078 - INFO - Epoch 105/150 | train loss 0.8487 acc 0.9894 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6021 acc 0.9018 | lr 1.17e-03
+2026-03-05 17:18:45,892 - INFO - Epoch 106/150 | train loss 0.8370 acc 0.9930 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6053 acc 0.8988 | lr 1.12e-03
+2026-03-05 17:19:41,702 - INFO - Epoch 107/150 | train loss 0.8358 acc 0.9917 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6069 acc 0.8973 | lr 1.08e-03
+2026-03-05 17:20:37,451 - INFO - Epoch 108/150 | train loss 0.8428 acc 0.9934 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6090 acc 0.8914 | lr 1.04e-03
+2026-03-05 17:21:33,331 - INFO - Epoch 109/150 | train loss 0.8144 acc 0.9936 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6017 acc 0.8929 | lr 9.94e-04
+2026-03-05 17:22:29,124 - INFO - Epoch 110/150 | train loss 0.8242 acc 0.9946 mask 0.000 u 0.000 thr 0.800 | valid loss 0.6043 acc 0.8958 | lr 9.52e-04
+2026-03-05 17:23:24,909 - INFO - Epoch 111/150 | train loss 0.8252 acc 0.9946 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5939 acc 0.8988 | lr 9.10e-04
+2026-03-05 17:24:20,757 - INFO - Epoch 112/150 | train loss 0.8204 acc 0.9967 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5969 acc 0.9003 | lr 8.69e-04
+2026-03-05 17:25:16,523 - INFO - Epoch 113/150 | train loss 0.8125 acc 0.9959 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5935 acc 0.9033 | lr 8.29e-04
+2026-03-05 17:26:12,345 - INFO - Epoch 114/150 | train loss 0.7981 acc 0.9962 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5978 acc 0.8988 | lr 7.89e-04
+2026-03-05 17:27:08,130 - INFO - Epoch 115/150 | train loss 0.8265 acc 0.9958 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5971 acc 0.9033 | lr 7.50e-04
+2026-03-05 17:28:03,945 - INFO - Epoch 116/150 | train loss 0.8096 acc 0.9959 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5938 acc 0.9018 | lr 7.11e-04
+2026-03-05 17:28:59,758 - INFO - Epoch 117/150 | train loss 0.8179 acc 0.9969 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5906 acc 0.9048 | lr 6.73e-04
+2026-03-05 17:29:55,568 - INFO - Epoch 118/150 | train loss 0.7975 acc 0.9974 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5821 acc 0.9048 | lr 6.36e-04
+2026-03-05 17:30:51,334 - INFO - Epoch 119/150 | train loss 0.7887 acc 0.9973 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5838 acc 0.8988 | lr 6.00e-04
+2026-03-05 17:31:47,173 - INFO - Epoch 120/150 | train loss 0.7984 acc 0.9974 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5784 acc 0.8988 | lr 5.65e-04
+2026-03-05 17:32:42,924 - INFO - Epoch 121/150 | train loss 0.7867 acc 0.9973 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5710 acc 0.9048 | lr 5.30e-04
+2026-03-05 17:33:38,749 - INFO - Epoch 122/150 | train loss 0.8089 acc 0.9971 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5828 acc 0.9018 | lr 4.96e-04
+2026-03-05 17:34:34,506 - INFO - Epoch 123/150 | train loss 0.7889 acc 0.9981 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5945 acc 0.8973 | lr 4.63e-04
+2026-03-05 17:35:30,322 - INFO - Epoch 124/150 | train loss 0.7821 acc 0.9971 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5962 acc 0.9003 | lr 4.31e-04
+2026-03-05 17:36:26,113 - INFO - Epoch 125/150 | train loss 0.7855 acc 0.9979 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5966 acc 0.9003 | lr 4.00e-04
+2026-03-05 17:37:21,924 - INFO - Epoch 126/150 | train loss 0.7922 acc 0.9981 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5960 acc 0.9018 | lr 3.70e-04
+2026-03-05 17:38:17,728 - INFO - Epoch 127/150 | train loss 0.7730 acc 0.9978 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5953 acc 0.9018 | lr 3.41e-04
+2026-03-05 17:39:13,426 - INFO - Epoch 128/150 | train loss 0.7943 acc 0.9985 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5870 acc 0.9048 | lr 3.13e-04
+2026-03-05 17:40:09,264 - INFO - Epoch 129/150 | train loss 0.7739 acc 0.9987 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5844 acc 0.9018 | lr 2.86e-04
+2026-03-05 17:41:05,116 - INFO - Epoch 130/150 | train loss 0.7923 acc 0.9991 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5892 acc 0.9033 | lr 2.60e-04
+2026-03-05 17:42:00,936 - INFO - Epoch 131/150 | train loss 0.7748 acc 0.9990 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5912 acc 0.8973 | lr 2.36e-04
+2026-03-05 17:42:56,497 - INFO - Epoch 132/150 | train loss 0.7621 acc 0.9992 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5869 acc 0.8973 | lr 2.12e-04
+2026-03-05 17:43:52,141 - INFO - Epoch 133/150 | train loss 0.7824 acc 0.9981 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5854 acc 0.8973 | lr 1.90e-04
+2026-03-05 17:44:47,927 - INFO - Epoch 134/150 | train loss 0.7973 acc 0.9988 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5883 acc 0.8973 | lr 1.68e-04
+2026-03-05 17:45:43,739 - INFO - Epoch 135/150 | train loss 0.7766 acc 0.9986 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5927 acc 0.8988 | lr 1.65e-04
+2026-03-05 17:46:39,527 - INFO - Epoch 136/150 | train loss 0.7557 acc 0.9984 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5948 acc 0.9003 | lr 1.53e-04
+2026-03-05 17:47:35,334 - INFO - Epoch 137/150 | train loss 0.7666 acc 0.9991 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5919 acc 0.8988 | lr 1.36e-04
+2026-03-05 17:48:31,102 - INFO - Epoch 138/150 | train loss 0.7561 acc 0.9992 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5914 acc 0.9018 | lr 1.14e-04
+2026-03-05 17:49:26,809 - INFO - Epoch 139/150 | train loss 0.7785 acc 0.9991 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5900 acc 0.9018 | lr 8.92e-05
+2026-03-05 17:50:22,436 - INFO - Epoch 140/150 | train loss 0.7631 acc 0.9993 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5910 acc 0.8973 | lr 6.48e-05
+2026-03-05 17:51:18,397 - INFO - Epoch 141/150 | train loss 0.7650 acc 0.9988 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5928 acc 0.8958 | lr 4.27e-05
+2026-03-05 17:52:14,141 - INFO - Epoch 142/150 | train loss 0.7541 acc 0.9992 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5940 acc 0.8958 | lr 2.51e-05
+2026-03-05 17:53:09,924 - INFO - Epoch 143/150 | train loss 0.7625 acc 0.9990 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5933 acc 0.8973 | lr 1.39e-05
+2026-03-05 17:54:05,735 - INFO - Epoch 144/150 | train loss 0.7646 acc 0.9992 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5928 acc 0.8958 | lr 1.00e-05
+2026-03-05 17:55:01,571 - INFO - Epoch 145/150 | train loss 0.7782 acc 0.9974 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5919 acc 0.8943 | lr 1.00e-05
+2026-03-05 17:55:57,311 - INFO - Epoch 146/150 | train loss 0.7618 acc 0.9993 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5916 acc 0.8958 | lr 1.00e-05
+2026-03-05 17:56:52,975 - INFO - Epoch 147/150 | train loss 0.7606 acc 0.9990 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5913 acc 0.8958 | lr 1.00e-05
+2026-03-05 17:57:48,750 - INFO - Epoch 148/150 | train loss 0.7831 acc 0.9987 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5904 acc 0.8958 | lr 1.00e-05
+2026-03-05 17:58:44,535 - INFO - Epoch 149/150 | train loss 0.7510 acc 0.9990 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5897 acc 0.8958 | lr 1.00e-05
+2026-03-05 17:59:40,587 - INFO - Epoch 150/150 | train loss 0.7552 acc 0.9994 mask 0.000 u 0.000 thr 0.800 | valid loss 0.5896 acc 0.8958 | lr 1.00e-05
+2026-03-05 17:59:40,589 - INFO - SWA: updating batch normalization statistics...
+2026-03-05 18:00:12,159 - INFO - SWA valid acc: 0.8929 (EMA best: 0.9048)
+2026-03-05 18:00:12,188 - INFO -   -> saved SWA model: swa-model-20260305-122606-ST.pt
+2026-03-05 18:00:13,551 - INFO - [EMA] TTA enabled: 10 augmentations
+2026-03-05 18:00:54,067 - INFO - [EMA] Valid acc (TTA): 0.9106
+2026-03-05 18:04:29,552 - INFO - [EMA] Saved predictions: predict-20260305-122606-ST.csv (3347 samples)
+2026-03-05 18:04:29,552 - INFO - [SWA] TTA enabled: 10 augmentations
+2026-03-05 18:05:10,112 - INFO - [SWA] Valid acc (TTA): 0.8985
+2026-03-05 18:08:35,842 - INFO - [SWA] Saved predictions: swa-predict-20260305-122606-ST.csv (3347 samples)
+2026-03-05 18:08:35,842 - INFO - 
+2026-03-05 18:08:35,842 - INFO - ============================================================
+2026-03-05 18:08:35,842 - INFO -   TRAINING SUMMARY
+2026-03-05 18:08:35,842 - INFO - ============================================================
+2026-03-05 18:08:35,842 - INFO - 
+2026-03-05 18:08:35,842 - INFO -   [Best EMA Model]
+2026-03-05 18:08:35,842 - INFO -     Epoch:       103/150
+2026-03-05 18:08:35,842 - INFO -     Train Loss:  0.8357
+2026-03-05 18:08:35,842 - INFO -     Train Acc:   0.9893
+2026-03-05 18:08:35,842 - INFO -     Valid Loss:  0.6100
+2026-03-05 18:08:35,842 - INFO -     Valid Acc:   0.9048
+2026-03-05 18:08:35,842 - INFO -     Valid (TTA): 0.9106
+2026-03-05 18:08:35,842 - INFO -     Mask:        0.000
+2026-03-05 18:08:35,842 - INFO -     Lambda_u:    0.000
+2026-03-05 18:08:35,842 - INFO -     LR:          1.25e-03
+2026-03-05 18:08:35,842 - INFO -     Checkpoint:  best-model-20260305-122606-ST.pt
+2026-03-05 18:08:35,842 - INFO -     Predictions: predict-20260305-122606-ST.csv
+2026-03-05 18:08:35,842 - INFO - 
+2026-03-05 18:08:35,842 - INFO -   [SWA Model]
+2026-03-05 18:08:35,842 - INFO -     Avg Range:   epoch 135~150 (15 epochs)
+2026-03-05 18:08:35,842 - INFO -     Valid Loss:  0.6197
+2026-03-05 18:08:35,842 - INFO -     Valid Acc:   0.8929
+2026-03-05 18:08:35,843 - INFO -     Valid (TTA): 0.8985
+2026-03-05 18:08:35,843 - INFO -     Checkpoint:  swa-model-20260305-122606-ST.pt
+2026-03-05 18:08:35,843 - INFO -     Predictions: swa-predict-20260305-122606-ST.csv
+2026-03-05 18:08:35,843 - INFO - 
+2026-03-05 18:08:35,843 - INFO - ============================================================
+2026-03-05 18:08:35,843 - INFO -   Done.
+2026-03-05 18:08:35,843 - INFO - ============================================================
